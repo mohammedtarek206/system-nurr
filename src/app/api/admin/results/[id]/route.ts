@@ -15,10 +15,10 @@ async function checkAdmin() {
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await checkAdmin())) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   
   await connectDB();
-  await Result.findByIdAndDelete(params.id);
+  await Result.findByIdAndDelete((await params).id);
   return NextResponse.json({ message: "تم الحذف" }, { status: 200 });
 }

@@ -15,22 +15,22 @@ async function checkAdmin() {
   }
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await checkAdmin())) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   
   await connectDB();
-  const questions = await Question.find({ examId: params.id }).sort({ createdAt: 1 });
+  const questions = await Question.find({ examId: (await params).id }).sort({ createdAt: 1 });
   return NextResponse.json(questions);
 }
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await checkAdmin())) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   
   await connectDB();
   const data = await req.json();
   try {
     const question = await Question.create({
-      examId: params.id,
+      examId: (await params).id,
       text: data.text,
       options: data.options,
       correctAnswer: data.correctAnswer

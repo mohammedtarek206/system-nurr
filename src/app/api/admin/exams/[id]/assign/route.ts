@@ -15,13 +15,13 @@ async function checkAdmin() {
   }
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await checkAdmin())) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   
   await connectDB();
   const { isPublic, assignedStudents } = await req.json();
   
-  await Exam.findByIdAndUpdate(params.id, { isPublic, assignedStudents });
+  await Exam.findByIdAndUpdate((await params).id, { isPublic, assignedStudents });
   
   return NextResponse.json({ message: "تم تحديث الإتاحة بنجاح" }, { status: 200 });
 }

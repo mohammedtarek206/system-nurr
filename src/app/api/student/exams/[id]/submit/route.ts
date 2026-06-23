@@ -6,7 +6,7 @@ import { Result } from '@/models/Result';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   await connectDB();
   const token = (await cookies()).get('token')?.value;
   if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -20,8 +20,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const { answers } = await req.json();
   
-  const exam = await Exam.findById(params.id);
-  const questions = await Question.find({ examId: params.id });
+  const exam = await Exam.findById((await params).id);
+  const questions = await Question.find({ examId: (await params).id });
   
   if (!questions || questions.length === 0) {
     return NextResponse.json({ message: "لا توجد أسئلة في هذا الامتحان" }, { status: 400 });
