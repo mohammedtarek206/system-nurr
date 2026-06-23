@@ -14,7 +14,7 @@ import { User as UserModel } from "@/models/User";
 import { Course as CourseModel } from "@/models/Course";
 import { Exam as ExamModel } from "@/models/Exam";
 
-export default async function AdminDashboard({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const token = (await cookies()).get('token')?.value;
   if (!token) redirect('/login');
 
@@ -26,7 +26,8 @@ export default async function AdminDashboard({ searchParams }: { searchParams: {
     redirect('/login');
   }
 
-  const currentTab = searchParams.tab || 'overview';
+  const resolvedSearchParams = await searchParams;
+  const currentTab = resolvedSearchParams.tab || 'overview';
 
   await connectDB();
   const studentsCount = currentTab === 'overview' ? await UserModel.countDocuments({ role: 'student' }) : 0;

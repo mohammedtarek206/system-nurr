@@ -15,7 +15,7 @@ const getYoutubeId = (url: string) => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
-export default async function StudentDashboard({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function StudentDashboard({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const token = (await cookies()).get('token')?.value;
   if (!token) redirect('/login');
 
@@ -28,7 +28,8 @@ export default async function StudentDashboard({ searchParams }: { searchParams:
   }
 
   await connectDB();
-  const currentTab = searchParams.tab || 'overview';
+  const resolvedSearchParams = await searchParams;
+  const currentTab = resolvedSearchParams.tab || 'overview';
 
   let courses: any[] = [];
   let videos: any[] = [];
