@@ -18,13 +18,13 @@ export default function Header({ user }: { user?: any }) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[#D4AF37]/20 bg-white/80 backdrop-blur-md">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-[100px] py-1">
-          <div className="flex-shrink-0 relative z-[100]">
+        <div className="flex items-center justify-between h-24 py-2">
+          <div className="flex-shrink-0">
             <Link href="/" className="flex items-center">
               <img 
                 src="/logo.png" 
                 alt="أحمد الأزهري للتأهيل والتدريب المهني" 
-                className="w-auto h-[100px] md:h-[160px] lg:h-[200px] max-w-[600px] object-contain drop-shadow-xl hover:scale-105 transition-transform duration-300 scale-125 md:scale-150 origin-right translate-y-4 md:translate-y-8"
+                className="h-16 md:h-20 w-auto object-contain drop-shadow-sm hover:scale-105 transition-transform duration-300"
               />
             </Link>
           </div>
