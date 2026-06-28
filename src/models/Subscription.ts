@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ISubscription extends Document {
-  studentId: mongoose.Types.ObjectId;
+  studentId?: mongoose.Types.ObjectId;
   courseId: mongoose.Types.ObjectId;
   sectionIds: mongoose.Types.ObjectId[];
   lessonIds: mongoose.Types.ObjectId[];
@@ -14,7 +14,7 @@ export interface ISubscription extends Document {
 }
 
 const SubscriptionSchema = new Schema<ISubscription>({
-  studentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  studentId: { type: Schema.Types.ObjectId, ref: 'User' },
   courseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
   sectionIds: [{ type: Schema.Types.ObjectId, ref: 'Section' }],
   lessonIds: [{ type: Schema.Types.ObjectId, ref: 'Lesson' }],

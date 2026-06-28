@@ -20,6 +20,12 @@ export default function SubscriptionRequestsManager() {
   useEffect(() => { fetchRequests(); }, []);
 
   const handleUpdateStatus = async (id: string, status: "approved" | "rejected", whatsappPhone?: string) => {
+    // Open WhatsApp immediately if approved, to bypass popup blockers
+    if (status === "approved" && whatsappPhone) {
+      const msg = encodeURIComponent("السلام عليكم،\nتم قبول طلب اشتراكك في منصة الأزهري للتأهيل والتدريب المهني.\nسيتم التواصل معك قريباً لتفعيل الاشتراك.\nشكراً لثقتك بنا 🌟");
+      window.open(`https://wa.me/${whatsappPhone.replace(/[^0-9]/g, '')}?text=${msg}`, "_blank");
+    }
+
     setUpdating(id);
     const res = await fetch(`/api/admin/subscription-requests/${id}`, {
       method: "PUT",
@@ -27,10 +33,6 @@ export default function SubscriptionRequestsManager() {
       body: JSON.stringify({ status })
     });
     if (res.ok) {
-      if (status === "approved" && whatsappPhone) {
-        const msg = encodeURIComponent("السلام عليكم،\nتم قبول طلب اشتراكك في منصة الأزهري للتأهيل والتدريب المهني.\nسيتم التواصل معك قريباً لتفعيل الاشتراك.\nشكراً لثقتك بنا 🌟");
-        window.open(`https://wa.me/${whatsappPhone.replace(/[^0-9]/g, '')}?text=${msg}`, "_blank");
-      }
       fetchRequests();
     }
     setUpdating(null);
