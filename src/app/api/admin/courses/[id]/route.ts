@@ -1,23 +1,33 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { Course } from '@/models/Course';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
+import { Section } from '@/models/Section';
+import { Lesson } from '@/models/Lesson';
 
-async function checkAdmin() {
-  const token = (await cookies()).get('token')?.value;
-  if (!token) return false;
-  try {
-    const user = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as any;
-    return user.role === 'admin';
-  } catch (e) {
-    return false;
-  }
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await connectDB();
+  const { id } = await params;
+  const course = await Course.findById(id);
+  if (!course) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  return NextResponse.json(course);
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await checkAdmin())) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await connectDB();
-  await Course.findByIdAndDelete((await params).id);
-  return NextResponse.json({ message: "تم الحذف" }, { status: 200 });
+  const { id } = await params;
+  const body = await req.json();
+  const course = await Course.findByIdAndUpdate(id, body, { new: true });
+  return NextResponse.json(course);
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await connectDB();
+  const { id } = await params;
+  await Course.findByIdAndDelete(id);
+  // Also delete sections and lessons
+  const sections = await Section.find({ courseId: id });
+  const sectionIds = sections.map(s => s._id);
+  await Lesson.deleteMany({ sectionId: { $in: sectionIds } });
+  await Section.deleteMany({ courseId: id });
+  return NextResponse.json({ success: true });
 }

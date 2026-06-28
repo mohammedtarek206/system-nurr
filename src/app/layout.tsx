@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "@/components/Header";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
+import { AuthProvider } from "@/context/AuthContext";
 
 const cairo = Cairo({ subsets: ["arabic"], variable: "--font-cairo" });
 
@@ -32,10 +33,12 @@ export default async function RootLayout({
   return (
     <html lang="ar" dir="rtl">
       <body className={`${cairo.variable} font-sans antialiased min-h-screen flex flex-col bg-[#F8FAFC]`}>
-        <Header user={user} />
-        <main className="flex-1">
-          {children}
-        </main>
+        <AuthProvider initialUser={user}>
+          <Header />
+          <main className="flex-1">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );

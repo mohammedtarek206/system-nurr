@@ -1,18 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, X, LogOut, LayoutDashboard } from "lucide-react";
+import { Menu, X, LogOut, LayoutDashboard, BookOpen } from "lucide-react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
-export default function Header({ user }: { user?: any }) {
+export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
-  const router = useRouter();
+  const { user, logout } = useAuth();
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.refresh();
-    router.push('/login');
+    await logout();
   };
 
   return (
@@ -31,9 +29,19 @@ export default function Header({ user }: { user?: any }) {
           
           <nav className="hidden md:flex items-center gap-8">
             <Link href="/" className="text-primary-dark font-semibold hover:text-gold transition-colors">الرئيسية</Link>
-            <Link href="/#lectures" className="text-primary-dark font-semibold hover:text-gold transition-colors">المحاضرات</Link>
+            <Link href="/courses" className="text-primary-dark font-semibold hover:text-gold transition-colors flex items-center gap-1">
+              <BookOpen className="w-4 h-4" />
+              الكورسات
+            </Link>
             <Link href="/exams" className="text-primary-dark font-semibold hover:text-gold transition-colors">الامتحانات</Link>
-            <Link href="#contact" className="text-primary-dark font-semibold hover:text-gold transition-colors">تواصل معنا</Link>
+            <a
+              href="https://web.whatsapp.com/send?phone=201016223940&text=%D8%AA%D9%88%D8%A7%D8%B5%D9%84%20%D9%85%D8%B9%D9%86%D8%A7"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-dark font-semibold hover:text-gold transition-colors"
+            >
+              تواصل معنا
+            </a>
           </nav>
 
           <div className="hidden md:flex items-center gap-4">
@@ -72,10 +80,19 @@ export default function Header({ user }: { user?: any }) {
       {isOpen && (
         <div className="md:hidden bg-white border-t border-[#D4AF37]/20 absolute w-full">
           <div className="px-4 pt-2 pb-6 space-y-2 shadow-xl">
-            <Link href="/" className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الرئيسية</Link>
-            <Link href="/#lectures" className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">المحاضرات</Link>
-            <Link href="/exams" className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الامتحانات</Link>
-            <Link href="#contact" className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">تواصل معنا</Link>
+            <Link href="/" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الرئيسية</Link>
+            <Link href="/courses" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light flex items-center gap-2">
+              <BookOpen className="w-4 h-4" /> الكورسات
+            </Link>
+            <Link href="/exams" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الامتحانات</Link>
+            <a
+              href="https://web.whatsapp.com/send?phone=201016223940"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light"
+            >
+              تواصل معنا
+            </a>
             <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col gap-3">
               {user ? (
                 <>

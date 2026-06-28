@@ -4,9 +4,11 @@ import Link from "next/link";
 import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -34,6 +36,8 @@ export default function LoginPage() {
       if (!res.ok) {
         throw new Error(data.message || "حدث خطأ أثناء تسجيل الدخول");
       }
+
+      await refreshUser();
 
       if (data.user.role === 'admin') {
         router.push("/admin");

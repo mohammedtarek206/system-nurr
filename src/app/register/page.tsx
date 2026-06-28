@@ -4,9 +4,11 @@ import Link from "next/link";
 import { User, Mail, Lock, Phone, ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [formData, setFormData] = useState({
     fullName: "",
     phone: "",
@@ -49,9 +51,11 @@ export default function RegisterPage() {
         throw new Error(data.message || "حدث خطأ أثناء التسجيل");
       }
 
+      await refreshUser();
+      
       setSuccess("تم إنشاء الحساب بنجاح! جاري تحويلك...");
       setTimeout(() => {
-        router.push("/login");
+        router.push("/dashboard");
       }, 2000);
     } catch (err: any) {
       setError(err.message);
