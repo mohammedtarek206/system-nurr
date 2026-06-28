@@ -242,7 +242,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
           </div>
           
           <button 
-            onClick={() => setInstructionPage(1) || setPhase("instructions")}
+            onClick={() => { setInstructionPage(1); setPhase("instructions"); }}
             className="bg-green-600 text-white font-bold text-xl px-12 py-4 rounded-xl hover:bg-green-700 transition shadow-lg transform hover:scale-105"
           >
             Start Your Exam
