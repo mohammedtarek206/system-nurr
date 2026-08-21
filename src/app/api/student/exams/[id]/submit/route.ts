@@ -2,90 +2,200 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { Exam } from '@/models/Exam';
 import { Question } from '@/models/Question';
+import { ExamAttempt } from '@/models/ExamAttempt';
 import { Result } from '@/models/Result';
 import { Certificate } from '@/models/Certificate';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  await connectDB();
-  const token = (await cookies()).get('token')?.value;
-  if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-
-  let user;
   try {
-    user = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as any;
-  } catch (e) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+    await connectDB();
+    const { id: examId } = await params;
 
-  const { answers } = await req.json();
+    const token = (await cookies()).get('token')?.value;
+    if (!token) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-  const exam = await Exam.findById((await params).id);
-  const questions = await Question.find({ examId: (await params).id });
-
-  if (!questions || questions.length === 0) {
-    return NextResponse.json({ message: "لا توجد أسئلة في هذا الامتحان" }, { status: 400 });
-  }
-
-  let score = 0;
-  questions.forEach((q) => {
-    if (answers[q._id.toString()] === q.correctAnswer) {
-      score += 1;
+    let user: any;
+    try {
+      user = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+    } catch {
+      return NextResponse.json({ message: 'Invalid token' }, { status: 401 });
     }
-  });
 
-  const percentage = Math.round((score / questions.length) * 100);
+    const body = await req.json();
+    const { attemptId, timeSpentSeconds } = body;
 
-  const processedAnswers = questions.map(q => {
-    const selected = answers[q._id.toString()];
-    return {
-      questionId: q._id,
-      selectedOption: selected !== undefined ? selected : null,
-      isCorrect: selected === q.correctAnswer,
-      isFlagged: false // We will accept flagged from client in payload later
-    };
-  });
+    if (!attemptId) return NextResponse.json({ message: 'attemptId is required' }, { status: 400 });
 
-  const result = await Result.create({
-    userId: user.id,
-    examId: exam._id,
-    score,
-    percentage,
-    totalQuestions: questions.length,
-    answers: processedAnswers,
-    status: percentage >= exam.passingScore ? 'PASSED' : 'FAILED',
-    questionOrder: questions.map(q => q._id),
-  });
+    // Load attempt
+    const attempt = await ExamAttempt.findOne({ _id: attemptId, userId: user.id, examId });
+    if (!attempt) return NextResponse.json({ message: 'Attempt not found' }, { status: 404 });
 
-  const passed = percentage >= exam.passingScore;
-
-  if (passed && exam.courseId) {
-    const existingCert = await Certificate.findOne({ userId: user.id, courseId: exam.courseId });
-    if (!existingCert) {
-      const certNumber = `CERT-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-      await Certificate.create({
-        userId: user.id,
-        courseId: exam.courseId,
-        examId: exam._id,
-        score,
-        percentage,
-        certificateNumber: certNumber
-      });
+    if (attempt.status === 'COMPLETED') {
+      return NextResponse.json({ message: 'Exam already submitted', alreadySubmitted: true }, { status: 409 });
     }
-  }
 
-  return NextResponse.json({
-    score,
-    percentage,
-    passed,
-    answers: processedAnswers,
-    questions: questions.map(q => ({
-      _id: q._id,
-      text: q.text,
-      clinicalCase: q.clinicalCase,
-      options: q.options,
-      correctAnswer: q.correctAnswer
-    }))
-  });
+    // Mark as submitting to prevent double-submit
+    attempt.status = 'SUBMITTING';
+    await attempt.save();
+
+    // Load exam and questions
+    const exam = await Exam.findById(examId);
+    if (!exam) return NextResponse.json({ message: 'Exam not found' }, { status: 404 });
+
+    // Load questions WITH correctAnswer (server-side only)
+    const allQuestions = await Question.find({ examId }).lean();
+
+    // Calculate score using attempt.answers
+    let correctCount = 0;
+    let wrongCount = 0;
+    let unansweredCount = 0;
+
+    const processedAnswers = attempt.questionOrder.map((qId: any) => {
+      const question = allQuestions.find((q: any) => q._id.toString() === qId.toString());
+      if (!question) return null;
+
+      const answerEntry = attempt.answers.find((a: any) => a.questionId.toString() === qId.toString());
+      const selected = answerEntry ? answerEntry.selectedOptionOriginalIndex : null;
+      const isFlagged = attempt.flaggedQuestions.some((f: any) => f.toString() === qId.toString());
+
+      let isCorrect = false;
+      if (selected === null || selected === undefined) {
+        unansweredCount++;
+      } else if (selected === question.correctAnswer) {
+        correctCount++;
+        isCorrect = true;
+      } else {
+        wrongCount++;
+      }
+
+      return {
+        questionId: qId,
+        selectedOption: selected,
+        isCorrect,
+        isFlagged
+      };
+    }).filter(Boolean);
+
+    const score = correctCount;
+    const totalQ = attempt.questionOrder.length;
+    const percentage = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0;
+    const passed = percentage >= (exam.passingScore || 50);
+    const submittedAt = new Date();
+
+    // Save result
+    const result = await Result.create({
+      userId: user.id,
+      studentName: attempt.studentName,
+      examId,
+      score,
+      percentage,
+      totalQuestions: totalQ,
+      correctAnswers: correctCount,
+      incorrectAnswers: wrongCount,
+      unanswered: unansweredCount,
+      flagged: attempt.flaggedQuestions.length,
+      timeSpentSeconds: timeSpentSeconds || 0,
+      startTime: attempt.startedAt,
+      endTime: submittedAt,
+      answers: processedAnswers,
+      comments: [],
+      questionOrder: attempt.questionOrder,
+      answerOrder: attempt.answerOrders.map((ao: any) => ({
+        questionId: ao.questionId,
+        options: ao.shuffledOrder
+      })),
+      status: passed ? 'PASSED' : 'FAILED'
+    });
+
+    // Update attempt status
+    attempt.status = 'COMPLETED';
+    attempt.submittedAt = submittedAt;
+    attempt.score = score;
+    attempt.percentage = percentage;
+    attempt.correctCount = correctCount;
+    attempt.wrongCount = wrongCount;
+    attempt.unansweredCount = unansweredCount;
+    attempt.timeSpentSeconds = timeSpentSeconds || 0;
+    attempt.resultId = result._id;
+    await attempt.save();
+
+    // Auto-generate certificate if passed and exam linked to course
+    if (passed && exam.courseId) {
+      const existingCert = await Certificate.findOne({ userId: user.id, courseId: exam.courseId });
+      if (!existingCert) {
+        const certNumber = `CERT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+        await Certificate.create({
+          userId: user.id,
+          courseId: exam.courseId,
+          examId: exam._id,
+          score,
+          percentage,
+          certificateNumber: certNumber
+        });
+      }
+    }
+
+    // Build review data with original question/answer details
+    const reviewQuestions = attempt.questionOrder.map((qId: any) => {
+      const question = allQuestions.find((q: any) => q._id.toString() === qId.toString());
+      if (!question) return null;
+
+      const aoEntry = attempt.answerOrders.find((ao: any) => ao.questionId.toString() === qId.toString());
+      const shuffledOrder: number[] = aoEntry ? aoEntry.shuffledOrder : question.options.map((_: any, i: number) => i);
+
+      const displayOptions = shuffledOrder.map((origIdx: number) => ({
+        text: question.options[origIdx],
+        originalIndex: origIdx
+      }));
+
+      const answerEntry = attempt.answers.find((a: any) => a.questionId.toString() === qId.toString());
+      const selected = answerEntry ? answerEntry.selectedOptionOriginalIndex : null;
+      const isFlagged = attempt.flaggedQuestions.some((f: any) => f.toString() === qId.toString());
+
+      return {
+        _id: question._id,
+        text: question.text,
+        clinicalCase: question.clinicalCase || '',
+        options: displayOptions,
+        correctAnswer: question.correctAnswer,
+        studentAnswer: selected,
+        isFlagged,
+        isCorrect: selected !== null && selected === question.correctAnswer
+      };
+    }).filter(Boolean);
+
+    return NextResponse.json({
+      success: true,
+      resultId: result._id,
+      score,
+      percentage,
+      passed,
+      totalQuestions: totalQ,
+      correctAnswers: correctCount,
+      incorrectAnswers: wrongCount,
+      unansweredCount,
+      flaggedCount: attempt.flaggedQuestions.length,
+      timeSpentSeconds: timeSpentSeconds || 0,
+      startedAt: attempt.startedAt,
+      submittedAt,
+      studentName: attempt.studentName,
+      examTitle: exam.title,
+      reviewQuestions
+    });
+  } catch (error: any) {
+    console.error('[SUBMIT EXAM ERROR]', error.stack || error);
+    // Try to reset attempt status if something went wrong
+    try {
+      const body = await (req as any).json?.().catch(() => ({}));
+      if (body?.attemptId) {
+        await ExamAttempt.findByIdAndUpdate(body.attemptId, { status: 'IN_PROGRESS' });
+      }
+    } catch { }
+    return NextResponse.json({
+      message: error.message || 'Server error during submission',
+      detail: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    }, { status: 500 });
+  }
 }
