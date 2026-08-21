@@ -8,6 +8,8 @@ import { Course } from "@/models/Course";
 import { Video as VideoModel } from "@/models/Video";
 import { Exam } from "@/models/Exam";
 import { Result } from "@/models/Result";
+import { Certificate } from "@/models/Certificate";
+import { FileBadge } from "lucide-react";
 
 const getYoutubeId = (url: string) => {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -35,24 +37,51 @@ export default async function StudentDashboard({ searchParams }: { searchParams:
   let videos: any[] = [];
   let exams: any[] = [];
   let results: any[] = [];
+  let certificates: any[] = [];
 
   if (currentTab === 'courses' || currentTab === 'overview') {
-    courses = await Course.find().sort({ createdAt: -1 });
+    courses = await Course.find({
+      $or: [
+        { targetAudience: { $exists: false } },
+        { targetAudience: { $size: 0 } },
+        { targetAudience: user.userType }
+      ]
+    }).sort({ createdAt: -1 });
   }
   if (currentTab === 'lectures' || currentTab === 'overview') {
-    videos = await VideoModel.find().populate('courseId').sort({ createdAt: -1 });
+    videos = await VideoModel.find({
+      $or: [
+        { targetAudience: { $exists: false } },
+        { targetAudience: { $size: 0 } },
+        { targetAudience: user.userType }
+      ]
+    }).populate('courseId').sort({ createdAt: -1 });
   }
   if (currentTab === 'exams' || currentTab === 'overview') {
     exams = await Exam.find({
-      $or: [
-        { isPublic: true },
-        { isPublic: { $exists: false } },
-        { assignedStudents: user.id }
+      $and: [
+        {
+          $or: [
+            { isPublic: true },
+            { isPublic: { $exists: false } },
+            { assignedStudents: user.id }
+          ]
+        },
+        {
+          $or: [
+            { targetAudience: { $exists: false } },
+            { targetAudience: { $size: 0 } },
+            { targetAudience: user.userType }
+          ]
+        }
       ]
     }).sort({ createdAt: -1 });
   }
   if (currentTab === 'results' || currentTab === 'overview') {
     results = await Result.find({ userId: user.id }).populate('examId').sort({ createdAt: -1 });
+  }
+  if (currentTab === 'certificates' || currentTab === 'overview') {
+    certificates = await Certificate.find({ userId: user.id }).populate('courseId examId').sort({ createdAt: -1 });
   }
 
   const menuItems = [
@@ -61,6 +90,7 @@ export default async function StudentDashboard({ searchParams }: { searchParams:
     { id: "lectures", name: "المحاضرات", icon: Video },
     { id: "exams", name: "الامتحانات", icon: FileText },
     { id: "results", name: "النتائج", icon: Award },
+    { id: "certificates", name: "شهاداتي", icon: FileBadge },
     { id: "profile", name: "الملف الشخصي", icon: User },
     { id: "settings", name: "الإعدادات", icon: Settings },
   ];
@@ -235,6 +265,37 @@ export default async function StudentDashboard({ searchParams }: { searchParams:
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {currentTab === 'certificates' && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-primary-dark mb-6">شهاداتي</h2>
+            {certificates.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">ليس لديك أي شهادات حتى الآن. اجتز امتحانات الكورسات للحصول على شهادتك.</div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {certificates.map((cert) => (
+                  <div key={cert._id.toString()} className="border-2 border-gold/30 p-6 rounded-2xl shadow-md bg-gradient-to-b from-yellow-50 to-white text-center hover:shadow-lg transition">
+                    <div className="w-16 h-16 bg-gold/10 text-gold rounded-full flex items-center justify-center mx-auto mb-4 border border-gold/20">
+                      <FileBadge className="w-8 h-8" />
+                    </div>
+                    <h3 className="font-bold text-xl text-primary-dark mb-2">شهادة إتمام كورس</h3>
+                    <p className="text-sm font-semibold text-primary mb-4">{cert.courseId?.title || "كورس غير معروف"}</p>
+                    <div className="text-xs text-gray-500 space-y-1 mb-6">
+                      <p><strong>الطالب:</strong> {user.name}</p>
+                      <p><strong>تاريخ الإصدار:</strong> {new Date(cert.issuedAt).toLocaleDateString('ar-EG')}</p>
+                      <p><strong>رقم الشهادة:</strong> {cert.certificateNumber}</p>
+                      <p><strong>نسبة النجاح:</strong> {cert.percentage}%</p>
+                    </div>
+
+                    <button className="w-full bg-gold text-white font-bold py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-gold-light transition shadow-sm">
+                      تحميل (قريباً) PDF
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>

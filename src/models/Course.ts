@@ -14,6 +14,8 @@ export interface ICourse extends Document {
   sectionsCount: number;
   lessonsCount: number;
   category: string;
+  targetAudience?: string[];
+  progressionEnabled?: boolean;
   createdAt: Date;
 }
 
@@ -31,6 +33,8 @@ const CourseSchema = new Schema<ICourse>({
   sectionsCount: { type: Number, default: 0 },
   lessonsCount: { type: Number, default: 0 },
   category: { type: String, default: '' },
+  targetAudience: [{ type: String, enum: ['technician', 'specialist', 'midwifery'] }],
+  progressionEnabled: { type: Boolean, default: false },
 }, { timestamps: true });
 
 export const Course = mongoose.models.Course || mongoose.model<ICourse>('Course', CourseSchema);

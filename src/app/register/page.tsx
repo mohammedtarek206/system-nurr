@@ -15,6 +15,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     confirmPassword: "",
+    userType: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -43,6 +44,7 @@ export default function RegisterPage() {
           email: formData.email,
           phone: formData.phone,
           password: formData.password,
+          userType: formData.userType
         }),
       });
 
@@ -52,7 +54,7 @@ export default function RegisterPage() {
       }
 
       await refreshUser();
-      
+
       setSuccess("تم إنشاء الحساب بنجاح! جاري تحويلك...");
       setTimeout(() => {
         router.push("/dashboard");
@@ -133,6 +135,25 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">نوع الحساب</label>
+              <div className="relative">
+                <select
+                  name="userType"
+                  required
+                  value={formData.userType}
+                  onChange={handleChange as any}
+                  className="w-full pl-4 pr-12 py-3 rounded-xl border border-gray-200 focus:border-gold focus:ring-2 focus:ring-gold/20 outline-none transition-all appearance-none"
+                >
+                  <option value="" disabled>اختر نوع الحساب...</option>
+                  <option value="technician">فني أو فني سعودي</option>
+                  <option value="specialist">أخصائي أو فني (الإمارات - قطر - عمان)</option>
+                  <option value="midwifery">قبالة</option>
+                </select>
+                <User className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              </div>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">كلمة المرور</label>
@@ -168,7 +189,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <button 
+            <button
               disabled={loading}
               className="w-full bg-gradient-to-r from-gold to-gold-light text-primary-dark font-bold text-lg py-4 rounded-xl hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 mt-8 disabled:opacity-70 disabled:hover:translate-y-0"
             >

@@ -7,6 +7,10 @@ import Link from "next/link";
 import { BookOpen, Clock, Users, Video, ChevronRight, ExternalLink, FileText } from "lucide-react";
 import SubscribeModal from "@/components/SubscribeModal";
 import CourseDetailClient from "@/components/CourseDetailClient";
+import { cookies } from "next/headers";
+import jwt from "jsonwebtoken";
+import { Result } from "@/models/Result";
+import { Lock } from "lucide-react";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   await connectDB();
@@ -30,8 +34,47 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
   }
   if (!course) notFound();
 
-  const sections = await Section.find({ courseId: id }).sort({ order: 1 });
-  const lessons = await Lesson.find({ courseId: id }).sort({ order: 1 });
+  const token = (await cookies()).get('token')?.value;
+  let user: any = null;
+  if (token) {
+    try { user = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret'); } catch (e) { }
+  }
+
+  if (course.targetAudience && course.targetAudience.length > 0) {
+    if (!user) notFound(); // Should be logged in to view restricted
+    if (user.role !== 'admin' && !course.targetAudience.includes(user.userType)) {
+      notFound();
+    }
+  }
+
+  // Filter sections and lessons by targetAudience
+  let sections = await Section.find({ courseId: id }).sort({ order: 1 });
+  let lessons = await Lesson.find({ courseId: id }).sort({ order: 1 });
+
+  sections = sections.filter(sec => {
+    if (!sec.targetAudience || sec.targetAudience.length === 0) return true;
+    if (user && user.role === 'admin') return true;
+    if (user && sec.targetAudience.includes(user.userType)) return true;
+    return false;
+  });
+
+  lessons = lessons.filter(les => {
+    if (!les.targetAudience || les.targetAudience.length === 0) return true;
+    if (user && user.role === 'admin') return true;
+    if (user && les.targetAudience.includes(user.userType)) return true;
+    return false;
+  });
+
+  // Calculate progression state
+  let passedExams = new Set<string>();
+  if (user && course.progressionEnabled) {
+    const results = await Result.find({ userId: user.id });
+    for (const r of results) {
+      if (r.percentage >= (r.examId?.passingScore || 50)) { // Or we can rely on Result.status if added earlier
+        passedExams.add(r.examId.toString());
+      }
+    }
+  }
 
   // Group lessons by section
   const lessonsBySection: Record<string, typeof lessons> = {};
@@ -151,62 +194,79 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
                         </span>
                         <h3 className="font-bold text-[#061B3D]">{section.title}</h3>
                       </div>
-                      {activeLessons.length > 0 && (
-                        <span className="text-xs font-semibold text-gray-500 bg-white px-3 py-1 rounded-full">
-                          {activeLessons.length} محاضرة
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {course.progressionEnabled && section.requiredExam && !passedExams.has(section.requiredExam.toString()) && (
+                          <span className="flex items-center gap-1 text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">
+                            <Lock className="w-3 h-3" /> Locked
+                          </span>
+                        )}
+                        {activeLessons.length > 0 && (
+                          <span className="text-xs font-semibold text-gray-500 bg-white px-3 py-1 rounded-full">
+                            {activeLessons.length} محاضرة
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {section.description && (
-                      <div className="px-6 py-3 bg-gray-50 border-b border-gray-100">
-                        <p className="text-sm text-gray-500">{section.description}</p>
+
+                    {course.progressionEnabled && section.requiredExam && !passedExams.has(section.requiredExam.toString()) ? (
+                      <div className="px-6 py-8 text-center bg-gray-50 flex flex-col items-center justify-center">
+                        <Lock className="w-8 h-8 text-gray-400 mb-2" />
+                        <p className="text-sm font-bold text-gray-500">هذا القسم مقفل. يجب عليك اجتياز الامتحان السابق بنسبة {section.passingPercentage || 90}% لفتحه.</p>
                       </div>
-                    )}
-                    {activeLessons.length > 0 && (
-                      <div className="divide-y divide-gray-50">
-                        {activeLessons.map((lesson, lIdx) => (
-                          <div key={lesson._id.toString()} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition">
-                            <div className="flex items-center gap-3">
-                              <span className="w-6 h-6 rounded-full bg-[#1E3A8A]/10 text-[#1E3A8A] font-bold text-xs flex items-center justify-center">
-                                {lIdx + 1}
-                              </span>
-                              <div>
-                                <p className="font-semibold text-[#061B3D] text-sm">{lesson.title}</p>
-                                {lesson.duration && (
-                                  <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                                    <Clock className="w-3 h-3" /> {lesson.duration}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {lesson.pdfFile && (
-                                <a
-                                  href={lesson.pdfFile}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs bg-orange-50 text-orange-600 px-2 py-1 rounded-lg font-semibold flex items-center gap-1"
-                                >
-                                  <FileText className="w-3 h-3" /> PDF
-                                </a>
-                              )}
-                              <a
-                                href={lesson.zoomLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-100 transition"
-                              >
-                                <ExternalLink className="w-3 h-3" /> دخول المحاضرة
-                              </a>
-                            </div>
+                    ) : (
+                      <>
+                        {section.description && (
+                          <div className="px-6 py-3 bg-gray-50 border-b border-gray-100">
+                            <p className="text-sm text-gray-500">{section.description}</p>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    {activeLessons.length === 0 && (
-                      <div className="px-6 py-4 text-sm text-gray-400 text-center">
-                        سيتم إضافة محاضرات هذا القسم قريباً
-                      </div>
+                        )}
+                        {activeLessons.length > 0 && (
+                          <div className="divide-y divide-gray-50">
+                            {activeLessons.map((lesson, lIdx) => (
+                              <div key={lesson._id.toString()} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition">
+                                <div className="flex items-center gap-3">
+                                  <span className="w-6 h-6 rounded-full bg-[#1E3A8A]/10 text-[#1E3A8A] font-bold text-xs flex items-center justify-center">
+                                    {lIdx + 1}
+                                  </span>
+                                  <div>
+                                    <p className="font-semibold text-[#061B3D] text-sm">{lesson.title}</p>
+                                    {lesson.duration && (
+                                      <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                                        <Clock className="w-3 h-3" /> {lesson.duration}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {lesson.pdfFile && (
+                                    <a
+                                      href={lesson.pdfFile}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs bg-orange-50 text-orange-600 px-2 py-1 rounded-lg font-semibold flex items-center gap-1"
+                                    >
+                                      <FileText className="w-3 h-3" /> PDF
+                                    </a>
+                                  )}
+                                  <a
+                                    href={lesson.zoomLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-100 transition"
+                                  >
+                                    <ExternalLink className="w-3 h-3" /> دخول المحاضرة
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {activeLessons.length === 0 && (
+                          <div className="px-6 py-4 text-sm text-gray-400 text-center">
+                            سيتم إضافة محاضرات هذا القسم قريباً
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );

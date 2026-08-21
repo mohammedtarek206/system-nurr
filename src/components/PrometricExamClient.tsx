@@ -8,24 +8,24 @@ type DisplayTheme = 'default' | 'gray' | 'yellow' | 'pink' | 'dark';
 
 export default function PrometricExamClient({ exam, questions }: { exam: any, questions: any[] }) {
   const router = useRouter();
-  
-  // Phases: landing -> instructions -> form -> exam -> review -> result
-  const [phase, setPhase] = useState<"landing" | "instructions" | "form" | "exam" | "review" | "result">("landing");
-  
+
+  // Phases: landing -> instructions -> form -> exam -> review -> result -> reviewAnswers
+  const [phase, setPhase] = useState<"landing" | "instructions" | "form" | "exam" | "review" | "result" | "reviewAnswers">("landing");
+
   // Instruction Pagination
   const [instructionPage, setInstructionPage] = useState(1);
   const totalInstructionPages = 8;
-  
+
   // Student Form
   const [studentName, setStudentName] = useState("");
-  
+
   // Exam State
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [flags, setFlags] = useState<Record<number, boolean>>({});
   const [comments, setComments] = useState<Record<number, string>>({});
   const [strikeThroughs, setStrikeThroughs] = useState<Record<number, number[]>>({}); // questionIndex -> array of option indices
-  
+
   // Modals
   const [showCalculator, setShowCalculator] = useState(false);
   const [calcInput, setCalcInput] = useState("");
@@ -33,12 +33,12 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
   const [currentComment, setCurrentComment] = useState("");
   const [showDisplaySettings, setShowDisplaySettings] = useState(false);
   const [theme, setTheme] = useState<DisplayTheme>('default');
-  
+
   // Time Tracking
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState(exam.duration * 60);
   const [timeSpent, setTimeSpent] = useState(0);
-  
+
   // Results
   const [resultData, setResultData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,10 +51,10 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
         setTimeSpent((prev) => prev + 1);
       }, 1000);
       return () => clearInterval(timerId);
-    } else if (phase === "exam" && timeLeft === 0) {
-      handleFinishExam();
+    } else if (phase === "exam" && timeLeft === 0 && !isSubmitting) {
+      submitFinalResult();
     }
-  }, [phase, timeLeft]);
+  }, [phase, timeLeft, isSubmitting]);
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -94,11 +94,11 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
   const handleHighlight = () => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
-    
+
     try {
       const range = selection.getRangeAt(0);
       if (range.collapsed) return;
-      
+
       const span = document.createElement('span');
       span.style.backgroundColor = '#ffeb3b';
       span.style.color = '#000';
@@ -120,15 +120,15 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
 
   const submitFinalResult = async () => {
     setIsSubmitting(true);
-    
+
     let correct = 0;
     let incorrect = 0;
     let unanswered = 0;
-    
+
     const processedAnswers = questions.map((q, idx) => {
       const selected = answers[idx];
       const isCorrect = selected === q.correctAnswer;
-      
+
       if (selected === undefined) {
         unanswered++;
       } else if (isCorrect) {
@@ -136,7 +136,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
       } else {
         incorrect++;
       }
-      
+
       return {
         questionId: q._id,
         selectedOption: selected !== undefined ? selected : null,
@@ -144,7 +144,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
         isFlagged: !!flags[idx]
       };
     });
-    
+
     const formattedComments = Object.keys(comments).map(idx => ({
       questionId: questions[Number(idx)]._id,
       text: comments[Number(idx)]
@@ -171,13 +171,20 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
     };
 
     try {
-      await fetch('/api/student/exams/submit', {
+      const res = await fetch(`/api/student/exams/${exam._id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ answers })
       });
-      
-      setResultData(payload);
+
+      const responseData = await res.json();
+      if (!res.ok) throw new Error(responseData.message || "Failed");
+
+      setResultData({
+        ...payload,
+        ...responseData
+      });
+
       setPhase("result");
     } catch (error) {
       alert("Failed to submit exam. Please try again.");
@@ -196,7 +203,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
 
   const themeClass = themeClasses[theme];
   const isDark = theme === 'dark';
-  
+
   const contentBg = isDark ? "bg-[#1E1E1E]" : "bg-white";
   const headerBg = isDark ? "bg-[#2D2D2D] border-gray-700" : "bg-white border-gray-200";
   const sidebarBg = isDark ? "bg-[#252525] border-gray-700" : "bg-gray-50 border-gray-200";
@@ -212,11 +219,11 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
             <h1 className="text-4xl font-black text-[#061B3D] mb-2">Prometric Exam Simulator</h1>
             <p className="text-gray-500 text-lg">Best Experience</p>
           </div>
-          
+
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 mb-8 flex flex-col items-center">
             <LayoutGrid className="w-12 h-12 text-blue-500 mb-4" />
             <p className="text-blue-800 font-medium mb-6">Use a computer for optimal experience.</p>
-            
+
             <div className="w-full bg-white rounded-lg p-4 border border-blue-100 grid grid-cols-2 gap-4 text-left">
               <div className="flex flex-col">
                 <span className="text-xs text-gray-500 font-bold uppercase">Exam Name</span>
@@ -240,8 +247,8 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
               </div>
             </div>
           </div>
-          
-          <button 
+
+          <button
             onClick={() => { setInstructionPage(1); setPhase("instructions"); }}
             className="bg-green-600 text-white font-bold text-xl px-12 py-4 rounded-xl hover:bg-green-700 transition shadow-lg transform hover:scale-105"
           >
@@ -268,7 +275,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
       switch (page) {
         case 1: return <p>Welcome to the Al-Azhari Prometric Exam Simulator. This simulator is designed to replicate the exact environment of official licensing examinations. Please ensure you are in a quiet environment and have a stable internet connection before proceeding.</p>;
         case 2: return <p>This examination consists of multiple-choice questions designed to assess your professional knowledge. Each question has four possible options with only one correct answer. No points are deducted for incorrect answers.</p>;
-        case 3: return <p>The interface is divided into three main areas:<br/>- <b>Top Header:</b> Displays candidate details, remaining time, and exam progress.<br/>- <b>Left Navigation:</b> Allows you to jump directly to any question.<br/>- <b>Main Content:</b> Displays the question, clinical scenario, and answer options.</p>;
+        case 3: return <p>The interface is divided into three main areas:<br />- <b>Top Header:</b> Displays candidate details, remaining time, and exam progress.<br />- <b>Left Navigation:</b> Allows you to jump directly to any question.<br />- <b>Main Content:</b> Displays the question, clinical scenario, and answer options.</p>;
         case 4: return <p>To answer a question, simply click on the desired option. Your answer will be automatically saved. To change your answer, click on a different option. You can right-click on any option to strike it through if you want to eliminate it.</p>;
         case 5: return <p>You can highlight important parts of the question text. To do this, select the text using your mouse, then click the "Highlight" button located above the question. The selected text will be marked in yellow.</p>;
         case 6: return <p>You can customize the appearance of the exam simulator for optimal comfort. Click the "Settings" button in the footer to choose between Default, Gray, Yellow, Pink, or Dark Mode themes. Your preference will be saved for the duration of the exam.</p>;
@@ -286,7 +293,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
           </div>
           <div className="flex-1 p-8 overflow-y-auto prose max-w-none text-gray-700 text-lg leading-relaxed">
             {getPageContent(instructionPage)}
-            
+
             {instructionPage === totalInstructionPages && (
               <div className="bg-blue-50 p-6 border-l-4 border-blue-500 mt-8 rounded text-blue-900 font-medium">
                 You have reached the end of the instructions. Please verify your details on the next screen before starting the examination.
@@ -294,7 +301,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
             )}
           </div>
           <div className="border-t p-4 flex justify-between items-center bg-gray-50">
-            <button 
+            <button
               disabled={instructionPage === 1}
               onClick={() => setInstructionPage(p => p - 1)}
               className="px-8 py-3 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 disabled:opacity-50 transition"
@@ -328,12 +335,12 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
           </div>
           <div className="mb-8 text-left">
             <label className="block text-sm font-bold text-gray-700 mb-2">Student Name *</label>
-            <input 
-              type="text" 
-              value={studentName} 
-              onChange={e => setStudentName(e.target.value)} 
+            <input
+              type="text"
+              value={studentName}
+              onChange={e => setStudentName(e.target.value)}
               placeholder="Enter your full name"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" 
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             />
           </div>
           <button onClick={startExam} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition">
@@ -347,7 +354,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
   if (phase === "review") {
     const answeredCount = Object.keys(answers).length;
     const flaggedCount = Object.keys(flags).filter(k => flags[Number(k)]).length;
-    
+
     return (
       <div className="min-h-screen bg-gray-100 flex flex-col p-4">
         <div className="bg-white rounded-xl shadow-lg flex-1 flex flex-col max-w-5xl mx-auto w-full">
@@ -355,7 +362,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
             <span>Section Review</span>
             <span>{exam.title}</span>
           </div>
-          
+
           <div className="p-8 flex-1 overflow-y-auto">
             <div className="grid grid-cols-3 gap-6 mb-8 text-center">
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
@@ -386,13 +393,13 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
               ))}
             </div>
           </div>
-          
+
           <div className="border-t p-4 flex justify-between items-center bg-gray-50">
             <button onClick={() => setPhase("exam")} className="px-6 py-2 bg-gray-200 rounded font-semibold text-gray-700">
               Back to Exam
             </button>
-            <button 
-              onClick={submitFinalResult} 
+            <button
+              onClick={submitFinalResult}
               disabled={isSubmitting}
               className="px-8 py-3 bg-green-600 text-white rounded font-bold hover:bg-green-700 disabled:opacity-50"
             >
@@ -412,7 +419,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
             <h1 className="text-3xl font-black mb-2">Examination Result</h1>
             <p className="opacity-80">Prometric Simulator</p>
           </div>
-          
+
           <div className="p-8">
             <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-lg mb-8 border-b pb-8">
               <div><span className="text-gray-500 font-semibold">Candidate:</span> <span className="font-bold text-[#061B3D]">{resultData.studentName}</span></div>
@@ -426,12 +433,12 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
               <div className="relative w-48 h-48">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="45" fill="none" stroke="#e5e7eb" strokeWidth="10" />
-                  <circle 
-                    cx="50" cy="50" r="45" fill="none" 
-                    stroke={resultData.percentage >= exam.passingScore ? "#16a34a" : "#dc2626"} 
-                    strokeWidth="10" strokeDasharray="282.7" 
-                    strokeDashoffset={282.7 - (282.7 * resultData.percentage) / 100} 
-                    className="transition-all duration-1000 ease-out" 
+                  <circle
+                    cx="50" cy="50" r="45" fill="none"
+                    stroke={resultData.percentage >= exam.passingScore ? "#16a34a" : "#dc2626"}
+                    strokeWidth="10" strokeDasharray="282.7"
+                    strokeDashoffset={282.7 - (282.7 * resultData.percentage) / 100}
+                    className="transition-all duration-1000 ease-out"
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -469,14 +476,129 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
                 <div className="text-xs font-bold text-gray-500 uppercase mt-1">Omitted</div>
               </div>
             </div>
-            
-            <div className="mt-8 flex justify-center gap-4">
-               <button onClick={() => router.push('/dashboard')} className="bg-[#061B3D] text-white px-8 py-3 rounded-lg font-bold hover:bg-[#1E3A8A] transition shadow">
-                 Return to Dashboard
-               </button>
+
+            <div className="mt-8 flex justify-center gap-4 flex-wrap">
+              <button onClick={() => { setCurrentQuestionIndex(0); setPhase("reviewAnswers"); }} className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition shadow">
+                Review Answers
+              </button>
+              <button onClick={() => router.push('/dashboard')} className="bg-[#061B3D] text-white px-8 py-3 rounded-lg font-bold hover:bg-[#1E3A8A] transition shadow">
+                Return to Dashboard
+              </button>
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (phase === "reviewAnswers") {
+    const q = resultData?.questions?.[currentQuestionIndex];
+    if (!q) return <div>Failed to load question details.</div>;
+
+    const studentAnswerIdx = answers[currentQuestionIndex];
+    const isCorrect = studentAnswerIdx === q.correctAnswer;
+
+    return (
+      <div className={`min-h-screen flex flex-col ${themeClass} font-sans select-none`} dir="ltr">
+        <header className={`flex flex-col p-4 border-b ${headerBg} shadow-sm shrink-0 gap-2`}>
+          <div className="flex justify-between items-center">
+            <div className="font-bold text-lg tracking-wider text-blue-600">REVIEW MODE</div>
+            <div className="flex items-center gap-6 font-bold">
+              <span className={isCorrect ? "text-green-600" : "text-red-600"}>
+                {isCorrect ? "Correct" : studentAnswerIdx === undefined ? "Unanswered" : "Wrong"}
+              </span>
+              <span>Question {currentQuestionIndex + 1} of {resultData.questions.length}</span>
+            </div>
+            <button onClick={() => setPhase("result")} className="text-sm font-bold border border-current px-4 py-1.5 rounded hover:bg-black/5 transition">
+              Back to Result
+            </button>
+          </div>
+        </header>
+
+        <div className="flex flex-1 overflow-hidden">
+          <aside className={`w-20 md:w-24 border-r ${sidebarBg} overflow-y-auto shrink-0 py-4 flex flex-col items-center gap-2 custom-scrollbar`}>
+            {resultData.questions.map((_: any, idx: number) => {
+              const sAns = answers[idx];
+              const cAns = resultData.questions[idx].correctAnswer;
+              let stateClass = "bg-gray-200 border-gray-300";
+              if (sAns === cAns) stateClass = "bg-green-100 border-green-400 text-green-800";
+              else if (sAns !== undefined) stateClass = "bg-red-100 border-red-400 text-red-800";
+
+              if (currentQuestionIndex === idx) stateClass += " ring-2 ring-blue-500 scale-110";
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentQuestionIndex(idx)}
+                  className={`w-12 h-10 flex items-center justify-center font-bold border relative transition-all ${stateClass}`}
+                >
+                  {flags[idx] && <Flag className="w-3 h-3 absolute top-0.5 right-0.5 text-yellow-600" />}
+                  {idx + 1}
+                </button>
+              )
+            })}
+          </aside>
+
+          <main className={`flex-1 overflow-y-auto p-4 md:p-8 ${contentBg}`}>
+            <div className="max-w-4xl mx-auto">
+              <div className="text-lg leading-relaxed mb-8">
+                {q.clinicalCase && (
+                  <div className={`mb-6 p-4 rounded border-l-4 border-blue-500 bg-blue-50`}>
+                    <h4 className="font-bold mb-2 uppercase text-sm opacity-70">Clinical Scenario</h4>
+                    <p className="whitespace-pre-line">{q.clinicalCase}</p>
+                  </div>
+                )}
+                <div className="font-semibold whitespace-pre-line text-xl">
+                  {q.text}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {q.options.map((optItem: any, displayIdx: number) => {
+                  const opt = typeof optItem === 'string' ? optItem : optItem.text;
+                  const originalIdx = typeof optItem === 'string' ? displayIdx : optItem.originalIndex;
+                  const isStudAns = studentAnswerIdx === originalIdx;
+                  const isCorAns = q.correctAnswer === originalIdx;
+
+                  let optStyle = cardBorder;
+                  if (isStudAns && !isCorAns) optStyle = "border-red-500 bg-red-50 text-red-900";
+                  if (isCorAns) optStyle = "border-green-500 bg-green-50 text-green-900 ring-2 ring-green-500";
+
+                  return (
+                    <div key={displayIdx} className={`flex items-start gap-4 p-5 border-2 rounded-xl ${optStyle}`}>
+                      <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold
+                        ${isCorAns ? 'bg-green-500 text-white' : isStudAns ? 'bg-red-500 text-white' : 'bg-gray-200'}
+                      `}>
+                        {isCorAns ? <CheckCircle className="w-5 h-5" /> : isStudAns ? <XCircle className="w-5 h-5" /> : String.fromCharCode(65 + displayIdx)}
+                      </div>
+                      <div className="flex-1 font-medium text-lg pt-1">{opt}</div>
+                      {isCorAns && <div className="text-green-600 font-bold bg-green-100 px-3 py-1 rounded-full text-sm">Correct Answer</div>}
+                      {isStudAns && !isCorAns && <div className="text-red-600 font-bold bg-red-100 px-3 py-1 rounded-full text-sm">Your Answer</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </main>
+        </div>
+
+        <footer className={`p-4 border-t ${footerBg} shrink-0 flex justify-center items-center gap-4`}>
+          <button
+            disabled={currentQuestionIndex === 0}
+            onClick={() => setCurrentQuestionIndex(p => p - 1)}
+            className="flex items-center gap-2 px-6 py-3 bg-gray-200 rounded font-bold hover:bg-gray-300 disabled:opacity-50"
+          >
+            <ChevronLeft className="w-5 h-5" /> Previous
+          </button>
+
+          <button
+            disabled={currentQuestionIndex === resultData.questions.length - 1}
+            onClick={() => setCurrentQuestionIndex(p => p + 1)}
+            className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 disabled:opacity-50"
+          >
+            Next <ChevronRight className="w-5 h-5" />
+          </button>
+        </footer>
       </div>
     );
   }
@@ -487,7 +609,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
 
   return (
     <div className={`min-h-screen flex flex-col ${themeClass} font-sans select-none transition-colors duration-300`} dir="ltr">
-      
+
       {/* Top Header */}
       <header className={`flex flex-col p-2 px-4 border-b ${headerBg} shadow-sm shrink-0 gap-2`}>
         <div className="flex justify-between items-center">
@@ -511,11 +633,11 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
             </button>
           </div>
         </div>
-        
+
         {/* Progress Bar */}
         <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-blue-500 transition-all duration-300" 
+          <div
+            className="h-full bg-blue-500 transition-all duration-300"
             style={{ width: `${(Object.keys(answers).length / questions.length) * 100}%` }}
           />
         </div>
@@ -523,7 +645,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
 
       {/* Main Body */}
       <div className="flex flex-1 overflow-hidden">
-        
+
         {/* Left Sidebar - Question Grid */}
         <aside className={`w-20 md:w-24 border-r ${sidebarBg} overflow-y-auto shrink-0 py-4 flex flex-col items-center gap-2 custom-scrollbar`}>
           {questions.map((_, idx) => (
@@ -531,7 +653,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
               key={idx}
               onClick={() => setCurrentQuestionIndex(idx)}
               className={`w-12 h-10 flex items-center justify-center font-bold border relative
-                ${currentQuestionIndex === idx ? 'ring-2 ring-blue-500 bg-blue-500 text-white border-blue-500' : 
+                ${currentQuestionIndex === idx ? 'ring-2 ring-blue-500 bg-blue-500 text-white border-blue-500' :
                   answers[idx] !== undefined ? 'bg-gray-300 border-gray-400 text-gray-800' : 'bg-white border-gray-300 text-gray-600'}
               `}
             >
@@ -567,15 +689,17 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
 
             {/* Options */}
             <div className="space-y-3">
-              {q.options.map((opt: string, oIdx: number) => {
-                const isSelected = answers[currentQuestionIndex] === oIdx;
-                const isStruck = (strikeThroughs[currentQuestionIndex] || []).includes(oIdx);
-                
+              {q.options.map((optItem: any, displayIdx: number) => {
+                const opt = typeof optItem === 'string' ? optItem : optItem.text;
+                const originalIdx = typeof optItem === 'string' ? displayIdx : optItem.originalIndex;
+                const isSelected = answers[currentQuestionIndex] === originalIdx;
+                const isStruck = (strikeThroughs[currentQuestionIndex] || []).includes(originalIdx);
+
                 return (
-                  <div 
-                    key={oIdx}
-                    onContextMenu={(e) => handleStrikeThrough(e, oIdx)}
-                    onClick={() => !isStruck && handleOptionSelect(oIdx)}
+                  <div
+                    key={displayIdx}
+                    onContextMenu={(e) => handleStrikeThrough(e, originalIdx)}
+                    onClick={() => !isStruck && handleOptionSelect(originalIdx)}
                     className={`flex items-start gap-4 p-4 border rounded-lg cursor-pointer transition-colors
                       ${isSelected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : `${cardBorder} hover:bg-black/5`}
                       ${isStruck ? 'opacity-40 line-through cursor-not-allowed bg-gray-100' : ''}
@@ -586,7 +710,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
                     <div className={`w-6 h-6 shrink-0 rounded-full border flex items-center justify-center font-bold text-sm mt-0.5
                       ${isSelected ? 'border-blue-600 bg-white text-white' : 'border-current'}
                     `}>
-                      {isSelected ? <div className="w-3 h-3 bg-blue-600 rounded-full" /> : String.fromCharCode(65 + oIdx)}
+                      {isSelected ? <div className="w-3 h-3 bg-blue-600 rounded-full" /> : String.fromCharCode(65 + displayIdx)}
                     </div>
                     <div className="flex-1 font-medium select-text">{opt}</div>
                   </div>
@@ -600,15 +724,15 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
       {/* Footer Navigation */}
       <footer className={`p-3 border-t ${footerBg} shrink-0 flex flex-wrap justify-between items-center gap-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]`}>
         <div className="flex gap-2">
-          <button 
+          <button
             disabled={currentQuestionIndex === 0}
             onClick={() => setCurrentQuestionIndex(p => p - 1)}
             className="flex items-center gap-2 px-6 py-2 bg-gray-200 text-gray-800 rounded font-bold hover:bg-gray-300 transition disabled:opacity-50"
           >
             <ChevronLeft className="w-5 h-5" /> Previous
           </button>
-          
-          <button 
+
+          <button
             disabled={currentQuestionIndex === questions.length - 1}
             onClick={() => setCurrentQuestionIndex(p => p + 1)}
             className="flex items-center gap-2 px-8 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition disabled:opacity-50"
@@ -624,7 +748,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
           <button onClick={() => setShowCalculator(true)} className="flex items-center gap-2 px-3 py-2 hover:bg-black/5 rounded font-semibold transition text-sm">
             <Calculator className="w-4 h-4" /> Calculator
           </button>
-          <button onClick={() => {setCurrentComment(comments[currentQuestionIndex] || ""); setShowComment(true);}} className="flex items-center gap-2 px-3 py-2 hover:bg-black/5 rounded font-semibold transition text-sm">
+          <button onClick={() => { setCurrentComment(comments[currentQuestionIndex] || ""); setShowComment(true); }} className="flex items-center gap-2 px-3 py-2 hover:bg-black/5 rounded font-semibold transition text-sm">
             <MessageSquare className="w-4 h-4" /> Comment
           </button>
           <button onClick={handleHighlight} className="flex items-center gap-2 px-3 py-2 hover:bg-black/5 rounded font-semibold transition text-sm">
@@ -636,7 +760,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
             <Flag className="w-4 h-4" /> Flag For Review
           </button>
         </div>
-        
+
         <div className="flex gap-2">
           <button onClick={() => setPhase("review")} className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700 transition">
             Finish Exam
@@ -656,8 +780,8 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
           <div className="p-3">
             <input type="text" readOnly value={calcInput} className="w-full bg-gray-100 border text-right p-2 mb-3 text-lg font-mono rounded" />
             <div className="grid grid-cols-4 gap-1">
-              {['7','8','9','/','4','5','6','*','1','2','3','-','C','0','.','+'].map(btn => (
-                <button 
+              {['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', 'C', '0', '.', '+'].map(btn => (
+                <button
                   key={btn}
                   onClick={() => {
                     if (btn === 'C') setCalcInput('');
@@ -668,10 +792,10 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
                   {btn}
                 </button>
               ))}
-              <button 
+              <button
                 onClick={() => {
                   try { setCalcInput(eval(calcInput).toString()); } catch { setCalcInput('Error'); }
-                }} 
+                }}
                 className="col-span-4 bg-blue-500 text-white hover:bg-blue-600 p-2 rounded font-bold mt-1"
               >
                 =
@@ -691,7 +815,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
             </div>
             <div className="p-4">
               <p className="text-sm text-gray-600 mb-2">Enter your comments or feedback regarding this specific question.</p>
-              <textarea 
+              <textarea
                 rows={5}
                 value={currentComment}
                 onChange={e => setCurrentComment(e.target.value)}
@@ -717,7 +841,7 @@ export default function PrometricExamClient({ exam, questions }: { exam: any, qu
             </div>
             <div className="p-4 space-y-3">
               {(['default', 'gray', 'yellow', 'pink', 'dark'] as DisplayTheme[]).map(t => (
-                <button 
+                <button
                   key={t}
                   onClick={() => setTheme(t)}
                   className={`w-full text-left px-4 py-3 border rounded font-semibold flex items-center justify-between

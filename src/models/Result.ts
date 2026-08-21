@@ -24,6 +24,12 @@ export interface IResult extends Document {
     questionId: mongoose.Types.ObjectId;
     text: string;
   }[];
+  questionOrder?: mongoose.Types.ObjectId[];
+  answerOrder?: {
+    questionId: mongoose.Types.ObjectId;
+    options: number[]; // the original indices of options
+  }[];
+  status?: 'PASSED' | 'FAILED';
   createdAt: Date;
 }
 
@@ -51,6 +57,12 @@ const ResultSchema = new Schema<IResult>({
     questionId: { type: Schema.Types.ObjectId, ref: 'Question' },
     text: { type: String, required: true }
   }],
+  questionOrder: [{ type: Schema.Types.ObjectId, ref: 'Question' }],
+  answerOrder: [{
+    questionId: { type: Schema.Types.ObjectId, ref: 'Question' },
+    options: [{ type: Number }]
+  }],
+  status: { type: String, enum: ['PASSED', 'FAILED'], default: 'FAILED' }
 }, { timestamps: true });
 
 export const Result = mongoose.models.Result || mongoose.model<IResult>('Result', ResultSchema);

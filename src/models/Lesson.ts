@@ -11,6 +11,7 @@ export interface ILesson extends Document {
   pdfFile: string;
   order: number;
   isActive: boolean;
+  targetAudience?: string[];
   createdAt: Date;
 }
 
@@ -25,6 +26,7 @@ const LessonSchema = new Schema<ILesson>({
   pdfFile: { type: String, default: '' },
   order: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
+  targetAudience: [{ type: String, enum: ['technician', 'specialist', 'midwifery'] }],
 }, { timestamps: true });
 
 export const Lesson = mongoose.models.Lesson || mongoose.model<ILesson>('Lesson', LessonSchema);

@@ -6,6 +6,8 @@ export interface ISection extends Document {
   description: string;
   image: string;
   order: number;
+  requiredExam?: mongoose.Types.ObjectId;
+  passingPercentage?: number;
   createdAt: Date;
 }
 
@@ -15,6 +17,8 @@ const SectionSchema = new Schema<ISection>({
   description: { type: String, default: '' },
   image: { type: String, default: '' },
   order: { type: Number, default: 0 },
+  requiredExam: { type: Schema.Types.ObjectId, ref: 'Exam' },
+  passingPercentage: { type: Number, default: 0 },
 }, { timestamps: true });
 
 export const Section = mongoose.models.Section || mongoose.model<ISection>('Section', SectionSchema);

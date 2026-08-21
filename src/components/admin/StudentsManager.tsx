@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Trash2, Users, BookOpen, X, ChevronDown, ChevronUp, Mail, Phone, Calendar } from "lucide-react";
+import { Trash2, Users, BookOpen, X, ChevronDown, ChevronUp, Mail, Phone, Calendar, Ban, ShieldCheck, MonitorSmartphone, Settings } from "lucide-react";
 
 export default function StudentsManager() {
   const [students, setStudents] = useState<any[]>([]);
@@ -23,6 +23,24 @@ export default function StudentsManager() {
     if (!confirm("هل أنت متأكد من حذف هذا الطالب نهائياً؟")) return;
     const res = await fetch(`/api/admin/students/${id}`, { method: "DELETE" });
     if (res.ok) fetchStudents();
+  };
+
+  const handleAction = async (id: string, action: string, data?: any) => {
+    let confirmMsg = action === 'ban' ? "هل أنت متأكد من حظر هذا الطالب؟" :
+      action === 'unban' ? "هل تريد إزالة الحظر عن هذا الطالب؟" :
+        action === 'resetDevice' ? "هل تريد إعادة تعيين جهاز الطالب؟" : "";
+    if (confirmMsg && !confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch(`/api/admin/students/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...data })
+      });
+      if (res.ok) fetchStudents();
+    } catch (e) {
+      alert("حدث خطأ أثناء التنفيذ");
+    }
   };
 
   const loadStudentRequests = async (phone: string, studentId: string) => {
@@ -68,10 +86,38 @@ export default function StudentsManager() {
                       {student.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{student.email}</span>}
                       {student.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{student.phone}</span>}
                       <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(student.createdAt).toLocaleDateString('ar-EG')}</span>
+
+                      {student.isBanned && <span className="text-red-600 font-bold bg-red-100 px-2 py-0.5 rounded">محظور</span>}
+                      {student.deviceId && !student.isBanned && <span className="text-green-600 font-bold bg-green-100 px-2 py-0.5 rounded flex items-center gap-1"><MonitorSmartphone className="w-3 h-3" /> جهاز نشط</span>}
+
+                      <select
+                        value={student.userType || ""}
+                        onChange={(e) => handleAction(student._id, 'updateType', { userType: e.target.value })}
+                        className="bg-white border rounded px-2 py-0.5 text-xs text-gray-700 outline-none"
+                      >
+                        <option value="">نوع الحساب غير محدد</option>
+                        <option value="technician">فني / فني سعودي</option>
+                        <option value="specialist">أخصائي / פني (الإمارات-قطر-عمان)</option>
+                        <option value="midwifery">قبالة</option>
+                      </select>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {student.isBanned ? (
+                    <button onClick={() => handleAction(student._id, 'unban')} className="text-xs bg-green-50 text-green-600 font-bold px-3 py-1.5 rounded-lg hover:bg-green-100 transition flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5" /> فك الحظر
+                    </button>
+                  ) : (
+                    <button onClick={() => handleAction(student._id, 'ban', { reason: 'Admin Manual Ban' })} className="text-xs bg-orange-50 text-orange-600 font-bold px-3 py-1.5 rounded-lg hover:bg-orange-100 transition flex items-center gap-1">
+                      <Ban className="w-3.5 h-3.5" /> حظر
+                    </button>
+                  )}
+                  {student.deviceId && (
+                    <button onClick={() => handleAction(student._id, 'resetDevice')} className="text-xs bg-purple-50 text-purple-600 font-bold px-3 py-1.5 rounded-lg hover:bg-purple-100 transition flex items-center gap-1" title="مسح الجهاز المرتبط للسماح بالدخول من جهاز جديد">
+                      <MonitorSmartphone className="w-3.5 h-3.5" /> Reset Device
+                    </button>
+                  )}
                   {student.phone && (
                     <button onClick={() => loadStudentRequests(student.phone, student._id)}
                       className="text-xs bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-lg hover:bg-blue-100 transition flex items-center gap-1">

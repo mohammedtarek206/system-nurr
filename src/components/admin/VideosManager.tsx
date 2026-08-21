@@ -14,7 +14,7 @@ export default function VideosManager() {
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ title: "", youtubeUrl: "", courseId: "" });
+  const [formData, setFormData] = useState({ title: "", youtubeUrl: "", courseId: "", targetAudience: [] as string[] });
 
   const fetchData = async () => {
     const [vRes, cRes] = await Promise.all([
@@ -46,7 +46,7 @@ export default function VideosManager() {
     if (res.ok) {
       setShowForm(false);
       fetchData();
-      setFormData({ title: "", youtubeUrl: "", courseId: courses[0]?._id || "" });
+      setFormData({ title: "", youtubeUrl: "", courseId: courses[0]?._id || "", targetAudience: [] });
     }
   };
 
@@ -72,19 +72,45 @@ export default function VideosManager() {
         <form onSubmit={handleSubmit} className="mb-8 bg-gray-50 p-6 rounded-xl border border-gray-200 grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <label className="block text-sm font-semibold mb-2">ربط بكورس (اختر الكورس)</label>
-            <select required value={formData.courseId} onChange={e => setFormData({...formData, courseId: e.target.value})} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-primary">
+            <select required value={formData.courseId} onChange={e => setFormData({ ...formData, courseId: e.target.value })} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-primary">
               {courses.map(c => <option key={c._id} value={c._id}>{c.title} ({c.category})</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-semibold mb-2">عنوان الفيديو (المحاضرة)</label>
-            <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-primary" />
+            <input required type="text" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-primary" />
           </div>
           <div>
             <label className="block text-sm font-semibold mb-2">رابط يوتيوب</label>
-            <input required type="url" value={formData.youtubeUrl} onChange={e => setFormData({...formData, youtubeUrl: e.target.value})} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-primary text-left" dir="ltr" placeholder="https://youtube.com/watch?v=..." />
+            <input required type="url" value={formData.youtubeUrl} onChange={e => setFormData({ ...formData, youtubeUrl: e.target.value })} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-primary text-left" dir="ltr" placeholder="https://youtube.com/watch?v=..." />
           </div>
-          
+
+          <div className="md:col-span-2">
+            <label className="block text-sm font-semibold mb-1">الفئة المستهدفة للفيديو (اتركه فارغاً للجميع)</label>
+            <div className="flex gap-4 bg-white p-3 border rounded-lg flex-wrap">
+              {[
+                { value: 'technician', label: 'فني / فني سعودي' },
+                { value: 'specialist', label: 'أخصائي (الإمارات-قطر-عمان)' },
+                { value: 'midwifery', label: 'قبالة' }
+              ].map((opt) => (
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="accent-primary"
+                    checked={formData.targetAudience.includes(opt.value)}
+                    onChange={(e) => {
+                      const newTypes = e.target.checked
+                        ? [...formData.targetAudience, opt.value]
+                        : formData.targetAudience.filter(t => t !== opt.value);
+                      setFormData({ ...formData, targetAudience: newTypes });
+                    }}
+                  />
+                  <span className="text-sm">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
           {formData.youtubeUrl && getYoutubeId(formData.youtubeUrl) && (
             <div className="md:col-span-2 mt-4">
               <p className="text-sm font-bold text-green-600 mb-2">معاينة الفيديو (بدون لوجو يوتيوب):</p>
