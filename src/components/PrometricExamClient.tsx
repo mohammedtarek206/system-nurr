@@ -367,7 +367,12 @@ export default function PrometricExamClient({ exam }: { exam: any }) {
               <div className="text-center">
                 <div className={`text-4xl font-black ${passed ? 'text-green-600' : 'text-red-600'}`}>{passed ? 'PASSED' : 'FAILED'}</div>
                 <p className="text-gray-500 mt-1">Pass required: <strong>{exam.passingScore}%</strong></p>
-                <p className="font-bold text-lg mt-1">{resultData.correctAnswers ?? resultData.score} / {resultData.totalQuestions} correct</p>
+                <p className="font-bold text-lg mt-1">{resultData.correctAnswers ?? resultData.score} / {resultData.totalQuestions} correct questions</p>
+                {resultData.totalPoints !== undefined && (
+                  <p className="font-extrabold text-blue-700 text-base mt-0.5">
+                    Score: {resultData.earnedPoints ?? resultData.score} / {resultData.totalPoints} total points
+                  </p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-8">

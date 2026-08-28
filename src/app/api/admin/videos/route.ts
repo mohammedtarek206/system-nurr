@@ -15,21 +15,73 @@ async function checkAdmin() {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!(await checkAdmin())) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   await connectDB();
-  const videos = await Video.find().populate('courseId').sort({ createdAt: -1 });
+
+  const { searchParams } = new URL(req.url);
+  const courseId = searchParams.get('courseId');
+  const sectionId = searchParams.get('sectionId');
+  const videoType = searchParams.get('videoType');
+  const status = searchParams.get('status');
+  const search = searchParams.get('search');
+
+  const query: any = {};
+  if (courseId) query.courseId = courseId;
+  if (sectionId) query.sectionId = sectionId;
+  if (videoType) query.videoType = videoType;
+  if (status) query.status = status;
+  if (search) {
+    query.$or = [
+      { title: { $regex: search, $options: 'i' } },
+      { description: { $regex: search, $options: 'i' } }
+    ];
+  }
+
+  const videos = await Video.find(query)
+    .populate('courseId', 'title category')
+    .populate('sectionId', 'title')
+    .populate('targetSpecializations', 'arName name')
+    .sort({ order: 1, createdAt: -1 });
+
   return NextResponse.json(videos);
 }
 
 export async function POST(req: Request) {
   if (!(await checkAdmin())) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   await connectDB();
-  const data = await req.json();
   try {
-    const video = await Video.create(data);
-    return NextResponse.json({ message: "تم الإنشاء بنجاح", video }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json({ message: "خطأ" }, { status: 500 });
+    const data = await req.json();
+
+    const urlToTest = data.videoUrl || data.youtubeUrl;
+    if (!urlToTest || typeof urlToTest !== 'string' || !urlToTest.trim()) {
+      return NextResponse.json({ message: "يرجى إدخال رابط صحيح للمحاضرة" }, { status: 400 });
+    }
+
+    try {
+      new URL(urlToTest);
+    } catch {
+      return NextResponse.json({ message: "يرجى إدخال رابط صحيح للمحاضرة" }, { status: 400 });
+    }
+
+    const payload = {
+      ...data,
+      videoUrl: urlToTest,
+      youtubeUrl: urlToTest,
+      videoType: data.videoType || 'zoom',
+      status: data.status || 'published',
+      order: Number(data.order) || 0
+    };
+
+    const video = await Video.create(payload);
+    const populated = await Video.findById(video._id)
+      .populate('courseId', 'title category')
+      .populate('sectionId', 'title')
+      .populate('targetSpecializations', 'arName name');
+
+    return NextResponse.json({ message: "تم إكمال إضافة المحاضرة بنجاح", video: populated }, { status: 201 });
+  } catch (error: any) {
+    console.error("Video creation error:", error);
+    return NextResponse.json({ message: error.message || "حدث خطأ أثناء حفظ الفيديو" }, { status: 500 });
   }
 }

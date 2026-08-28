@@ -55,7 +55,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                     text: q.options[origIdx],
                     originalIndex: origIdx
                 }));
-                return { _id: q._id, text: q.text, clinicalCase: q.clinicalCase || '', options: displayOptions };
+                return {
+                    _id: q._id,
+                    text: q.text,
+                    clinicalCase: q.clinicalCase || '',
+                    options: displayOptions,
+                    points: q.points || 1
+                };
             });
 
             return NextResponse.json({
@@ -122,7 +128,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 text: q.options[origIdx],
                 originalIndex: origIdx
             }));
-            return { _id: q._id, text: q.text, clinicalCase: q.clinicalCase || '', options: displayOptions };
+            return {
+                _id: q._id,
+                text: q.text,
+                clinicalCase: q.clinicalCase || '',
+                options: displayOptions,
+                points: q.points || 1
+            };
         });
 
         return NextResponse.json({ attempt, questions: questionsForClient }, { status: 201 });

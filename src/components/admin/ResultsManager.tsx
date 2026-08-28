@@ -56,7 +56,7 @@ export default function ResultsManager() {
             return (
               <div key={res._id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm transition hover:border-primary/30">
                 {/* Header Row */}
-                <div 
+                <div
                   className={`flex flex-wrap md:flex-nowrap items-center justify-between p-4 cursor-pointer select-none ${isExpanded ? 'bg-primary/5' : 'bg-white hover:bg-gray-50'}`}
                   onClick={() => setExpandedId(isExpanded ? null : res._id)}
                 >
@@ -69,11 +69,13 @@ export default function ResultsManager() {
                       <p className="text-sm text-gray-500">{res.examId?.title || "امتحان محذوف"}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-6 w-full md:w-auto">
                     <div className="text-center hidden sm:block">
-                      <div className="text-xs text-gray-400 font-bold">الدرجة</div>
-                      <div className="font-bold text-gray-700">{res.score} / {res.totalQuestions}</div>
+                      <div className="text-xs text-gray-400 font-bold">النقاط / الأسئلة</div>
+                      <div className="font-bold text-gray-700">
+                        {res.earnedPoints !== undefined && res.totalPoints ? `${res.earnedPoints} / ${res.totalPoints} pt` : `${res.score} / ${res.totalQuestions}`}
+                      </div>
                     </div>
                     <div className="text-center hidden sm:block">
                       <div className="text-xs text-gray-400 font-bold">الزمن</div>
@@ -83,8 +85,8 @@ export default function ResultsManager() {
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {passed ? 'ناجح' : 'راسب'}
                       </span>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleDelete(res._id); }} 
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(res._id); }}
                         className="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100 transition"
                         title="حذف المحاولة"
                       >

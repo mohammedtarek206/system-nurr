@@ -5,6 +5,8 @@ export interface IResult extends Document {
   studentName: string;
   examId: mongoose.Types.ObjectId;
   score: number;
+  earnedPoints?: number;
+  totalPoints?: number;
   percentage: number;
   totalQuestions: number;
   correctAnswers: number;
@@ -19,6 +21,8 @@ export interface IResult extends Document {
     selectedOption: number | null;
     isCorrect: boolean;
     isFlagged: boolean;
+    points?: number;
+    earnedPoints?: number;
   }[];
   comments: {
     questionId: mongoose.Types.ObjectId;
@@ -38,6 +42,8 @@ const ResultSchema = new Schema<IResult>({
   studentName: { type: String, required: true },
   examId: { type: Schema.Types.ObjectId, ref: 'Exam', required: true },
   score: { type: Number, required: true },
+  earnedPoints: { type: Number, default: 0 },
+  totalPoints: { type: Number, default: 0 },
   percentage: { type: Number, required: true },
   totalQuestions: { type: Number, required: true },
   correctAnswers: { type: Number, default: 0 },
@@ -51,7 +57,9 @@ const ResultSchema = new Schema<IResult>({
     questionId: { type: Schema.Types.ObjectId, ref: 'Question' },
     selectedOption: { type: Number, default: null },
     isCorrect: { type: Boolean, default: false },
-    isFlagged: { type: Boolean, default: false }
+    isFlagged: { type: Boolean, default: false },
+    points: { type: Number, default: 1 },
+    earnedPoints: { type: Number, default: 0 }
   }],
   comments: [{
     questionId: { type: Schema.Types.ObjectId, ref: 'Question' },

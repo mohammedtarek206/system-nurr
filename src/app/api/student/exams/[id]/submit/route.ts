@@ -47,25 +47,34 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // Load questions WITH correctAnswer (server-side only)
     const allQuestions = await Question.find({ examId }).lean();
 
-    // Calculate score using attempt.answers
+    // Calculate score using attempt.answers and Question points
     let correctCount = 0;
     let wrongCount = 0;
     let unansweredCount = 0;
+    let earnedPoints = 0;
+    let totalPoints = 0;
 
     const processedAnswers = attempt.questionOrder.map((qId: any) => {
       const question = allQuestions.find((q: any) => q._id.toString() === qId.toString());
       if (!question) return null;
+
+      const qPoints = Number(question.points) || 1;
+      totalPoints += qPoints;
 
       const answerEntry = attempt.answers.find((a: any) => a.questionId.toString() === qId.toString());
       const selected = answerEntry ? answerEntry.selectedOptionOriginalIndex : null;
       const isFlagged = attempt.flaggedQuestions.some((f: any) => f.toString() === qId.toString());
 
       let isCorrect = false;
+      let qEarnedPoints = 0;
+
       if (selected === null || selected === undefined) {
         unansweredCount++;
       } else if (selected === question.correctAnswer) {
         correctCount++;
         isCorrect = true;
+        earnedPoints += qPoints;
+        qEarnedPoints = qPoints;
       } else {
         wrongCount++;
       }
@@ -74,13 +83,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         questionId: qId,
         selectedOption: selected,
         isCorrect,
-        isFlagged
+        isFlagged,
+        points: qPoints,
+        earnedPoints: qEarnedPoints
       };
     }).filter(Boolean);
 
-    const score = correctCount;
-    const totalQ = attempt.questionOrder.length;
-    const percentage = totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0;
+    const score = earnedPoints;
+    const percentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
     const passed = percentage >= (exam.passingScore || 50);
     const submittedAt = new Date();
 
@@ -90,8 +100,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       studentName: attempt.studentName,
       examId,
       score,
+      earnedPoints,
+      totalPoints,
       percentage,
-      totalQuestions: totalQ,
+      totalQuestions: attempt.questionOrder.length,
       correctAnswers: correctCount,
       incorrectAnswers: wrongCount,
       unanswered: unansweredCount,
@@ -113,6 +125,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     attempt.status = 'COMPLETED';
     attempt.submittedAt = submittedAt;
     attempt.score = score;
+    attempt.earnedPoints = earnedPoints;
+    attempt.totalPoints = totalPoints;
     attempt.percentage = percentage;
     attempt.correctCount = correctCount;
     attempt.wrongCount = wrongCount;
@@ -170,9 +184,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       success: true,
       resultId: result._id,
       score,
+      earnedPoints,
+      totalPoints,
       percentage,
       passed,
-      totalQuestions: totalQ,
+      totalQuestions: attempt.questionOrder.length,
       correctAnswers: correctCount,
       incorrectAnswers: wrongCount,
       unansweredCount,

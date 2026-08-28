@@ -27,6 +27,8 @@ export interface IExamAttempt extends Document {
     submittedAt?: Date;
     // Calculated on submit
     score?: number;
+    earnedPoints?: number;
+    totalPoints?: number;
     percentage?: number;
     correctCount?: number;
     wrongCount?: number;
@@ -54,6 +56,8 @@ const ExamAttemptSchema = new Schema<IExamAttempt>({
     startedAt: { type: Date, required: true, default: Date.now },
     submittedAt: { type: Date },
     score: { type: Number },
+    earnedPoints: { type: Number, default: 0 },
+    totalPoints: { type: Number, default: 0 },
     percentage: { type: Number },
     correctCount: { type: Number },
     wrongCount: { type: Number },
