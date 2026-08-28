@@ -12,11 +12,13 @@ import CategoriesManager from "@/components/admin/CategoriesManager";
 import SubscriptionRequestsManager from "@/components/admin/SubscriptionRequestsManager";
 import SummariesManager from "@/components/admin/SummariesManager";
 import SpecializationsManager from "@/components/admin/SpecializationsManager";
+import NotificationsManager from "@/components/admin/NotificationsManager";
 import connectDB from "@/lib/db";
 import { User as UserModel } from "@/models/User";
 import { Course as CourseModel } from "@/models/Course";
 import { Exam as ExamModel } from "@/models/Exam";
 import { SubscriptionRequest } from "@/models/SubscriptionRequest";
+import { Bell } from "lucide-react";
 
 export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const token = (await cookies()).get('token')?.value;
@@ -52,6 +54,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
     { id: "results", name: "نتائج الطلاب", icon: Award },
     { id: "summaries", name: "الملخصات", icon: BookMarked },
     { id: "specializations", name: "إدارة التخصصات", icon: GraduationCap },
+    { id: "notifications", name: "إدارة الإشعارات", icon: Bell },
     { id: "settings", name: "الإعدادات", icon: Settings },
   ];
 
@@ -155,6 +158,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
         {currentTab === 'subscription-requests' && <SubscriptionRequestsManager />}
         {currentTab === 'summaries' && <SummariesManager />}
         {currentTab === 'specializations' && <SpecializationsManager />}
+        {currentTab === 'notifications' && <NotificationsManager />}
         {currentTab === 'settings' && (
           <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
             <h2 className="text-xl font-bold text-[#061B3D] mb-4">الإعدادات</h2>

@@ -42,6 +42,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         status: 'active',
         requestId: id
       });
+      if (request.studentId || body.studentId) {
+        const studentId = (request.studentId || body.studentId).toString();
+        const { sendNotificationToUser } = await import('@/lib/notifications');
+        const { Course } = await import('@/models/Course');
+        const course = await Course.findById(request.courseId).lean();
+        const courseTitle = (course as any)?.title || 'الكورس';
+
+        sendNotificationToUser({
+          userId: studentId,
+          type: 'COURSE_ACTIVATED',
+          title: 'تم تفعيل الكورس',
+          message: `تم تفعيل صلاحية الوصول إلى كورس ${courseTitle} حتى ${end.toLocaleDateString('ar-EG')}`,
+          link: `/courses/${request.courseId}`,
+          contentId: `sub_appr_${id}`,
+          contentType: 'subscription',
+          priority: 'important'
+        }).catch(err => console.error('Subscription approval notification error:', err));
+      }
     }
   }
 

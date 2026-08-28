@@ -5,6 +5,8 @@ import { Menu, X, LogOut, LayoutDashboard } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
+import NotificationBell from "@/components/NotificationBell";
+
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
@@ -44,7 +46,8 @@ export default function Header() {
 
           <div className="hidden md:flex items-center gap-4">
             {user ? (
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <NotificationBell />
                 <span className="text-primary-dark font-bold">أهلاً، {user.name}</span>
                 <Link href={user.role === 'admin' ? '/admin' : '/dashboard'} className="bg-primary/10 text-primary-dark font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary hover:text-white transition-colors">
                   <LayoutDashboard className="w-4 h-4" />
@@ -66,7 +69,8 @@ export default function Header() {
             )}
           </div>
 
-          <div className="md:hidden flex items-center">
+          <div className="md:hidden flex items-center gap-2">
+            {user && <NotificationBell />}
             <button onClick={() => setIsOpen(!isOpen)} className="text-primary-dark p-2">
               {isOpen ? <X size={24} /> : <Menu size={24} />}
             </button>

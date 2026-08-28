@@ -79,6 +79,22 @@ export async function POST(req: Request) {
       .populate('sectionId', 'title')
       .populate('targetSpecializations', 'arName name');
 
+    if (video.status === 'published') {
+      const courseTitle = (populated?.courseId as any)?.title || 'الكورس';
+      const { sendNotificationToTargetAudience } = await import('@/lib/notifications');
+      sendNotificationToTargetAudience({
+        type: 'NEW_LECTURE',
+        title: 'محاضرة جديدة متاحة',
+        message: `تم إضافة محاضرة جديدة "${video.title}" إلى كورس ${courseTitle}`,
+        link: `/courses/${video.courseId}?lectureId=${video._id}`,
+        contentId: `video_${video._id}`,
+        contentType: 'video',
+        targetType: (video.targetSpecializations && video.targetSpecializations.length > 0) ? 'specific' : 'all',
+        targetSpecializations: video.targetSpecializations || [],
+        courseId: video.courseId?.toString()
+      }).catch(err => console.error('Lecture notification error:', err));
+    }
+
     return NextResponse.json({ message: "تم إكمال إضافة المحاضرة بنجاح", video: populated }, { status: 201 });
   } catch (error: any) {
     console.error("Video creation error:", error);

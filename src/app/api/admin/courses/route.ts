@@ -22,5 +22,20 @@ export async function POST(req: NextRequest) {
   await connectDB();
   const body = await req.json();
   const course = await Course.create(body);
+
+  if (course.isPublished !== false) {
+    const { sendNotificationToTargetAudience } = await import('@/lib/notifications');
+    sendNotificationToTargetAudience({
+      type: 'NEW_COURSE',
+      title: 'كورس جديد متاح',
+      message: `تم إضافة كورس جديد متاح لتخصصك: ${course.title}`,
+      link: `/courses/${course._id}`,
+      contentId: `course_${course._id}`,
+      contentType: 'course',
+      targetType: course.targetType || 'all',
+      targetSpecializations: course.targetSpecializations || []
+    }).catch(err => console.error('Course notification error:', err));
+  }
+
   return NextResponse.json(course, { status: 201 });
 }

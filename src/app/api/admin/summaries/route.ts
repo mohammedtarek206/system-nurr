@@ -42,5 +42,19 @@ export async function POST(req: Request) {
         coverImage: coverImage || '',
     });
 
+    if (summary.status === 'published') {
+        const { sendNotificationToTargetAudience } = await import('@/lib/notifications');
+        sendNotificationToTargetAudience({
+            type: 'NEW_SUMMARY',
+            title: 'ملخص جديد متاح',
+            message: `تم إضافة ملخص جديد إلى المنصة: ${summary.title}`,
+            link: `/summaries?summaryId=${summary._id}`,
+            contentId: `summary_${summary._id}`,
+            contentType: 'summary',
+            targetType: summary.targetType || 'all',
+            targetSpecializations: summary.targetSpecializations || []
+        }).catch(err => console.error('Summary notification error:', err));
+    }
+
     return NextResponse.json(summary, { status: 201 });
 }

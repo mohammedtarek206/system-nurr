@@ -136,6 +136,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await attempt.save();
 
     // Auto-generate certificate if passed and exam linked to course
+    let createdCert = false;
     if (passed && exam.courseId) {
       const existingCert = await Certificate.findOne({ userId: user.id, courseId: exam.courseId });
       if (!existingCert) {
@@ -148,8 +149,77 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           percentage,
           certificateNumber: certNumber
         });
+        createdCert = true;
       }
     }
+
+    // Trigger Notifications asynchronously
+    (async () => {
+      const { sendNotificationToUser } = await import('@/lib/notifications');
+      const examTitle = exam.title || 'الامتحان';
+
+      // 1. Result Notification
+      await sendNotificationToUser({
+        userId: user.id,
+        type: 'EXAM_RESULT',
+        title: 'ظهرت نتيجة الامتحان',
+        message: `حصلت على ${percentage}% في ${examTitle}`,
+        link: `/dashboard`,
+        contentId: `exam_res_${result._id}`,
+        contentType: 'exam',
+        priority: 'normal'
+      });
+
+      // 2. Pass / Fail / Perfect Score Notification
+      if (percentage === 100) {
+        await sendNotificationToUser({
+          userId: user.id,
+          type: 'EXAM_PERFECT_SCORE',
+          title: 'مبروك! الدرجة النهائية 100%',
+          message: `أحسنت! لقد حصلت على الدرجة النهائية 100% في ${examTitle}`,
+          link: `/dashboard`,
+          contentId: `exam_perfect_${result._id}`,
+          contentType: 'exam',
+          priority: 'urgent'
+        });
+      } else if (passed) {
+        await sendNotificationToUser({
+          userId: user.id,
+          type: 'EXAM_PASSED',
+          title: 'مبروك! لقد اجتزت الامتحان بنجاح',
+          message: `تهانينا! نجحت في ${examTitle} بنسبة ${percentage}%`,
+          link: `/dashboard`,
+          contentId: `exam_pass_${result._id}`,
+          contentType: 'exam',
+          priority: 'important'
+        });
+      } else {
+        await sendNotificationToUser({
+          userId: user.id,
+          type: 'EXAM_FAILED',
+          title: 'نتيجة الامتحان',
+          message: `لم تحقق درجة النجاح في ${examTitle} (حصلت على ${percentage}% والمطلوب ${exam.passingScore || 50}%)`,
+          link: `/dashboard`,
+          contentId: `exam_fail_${result._id}`,
+          contentType: 'exam',
+          priority: 'important'
+        });
+      }
+
+      // 3. Certificate Notification
+      if (createdCert) {
+        await sendNotificationToUser({
+          userId: user.id,
+          type: 'CERTIFICATE_ISSUED',
+          title: 'تم إصدار شهادتك',
+          message: `مبروك! شهادتك لكورس ${examTitle} أصبحت جاهزة للتحميل`,
+          link: `/dashboard`,
+          contentId: `cert_${user.id}_${exam.courseId}`,
+          contentType: 'certificate',
+          priority: 'urgent'
+        });
+      }
+    })().catch(err => console.error('Exam result notifications error:', err));
 
     // Build review data with original question/answer details
     const reviewQuestions = attempt.questionOrder.map((qId: any) => {
