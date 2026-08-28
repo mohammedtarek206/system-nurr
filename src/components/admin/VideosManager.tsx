@@ -12,19 +12,23 @@ const getYoutubeId = (url: string) => {
 export default function VideosManager() {
   const [videos, setVideos] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
+  const [specializations, setSpecializations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ title: "", youtubeUrl: "", courseId: "", targetAudience: [] as string[] });
+  const [formData, setFormData] = useState({ title: "", youtubeUrl: "", courseId: "", targetType: 'all', targetSpecializations: [] as string[] });
 
   const fetchData = async () => {
-    const [vRes, cRes] = await Promise.all([
+    const [vRes, cRes, specRes] = await Promise.all([
       fetch("/api/admin/videos"),
-      fetch("/api/admin/courses")
+      fetch("/api/admin/courses"),
+      fetch("/api/admin/specializations")
     ]);
     const vData = await vRes.json();
     const cData = await cRes.json();
+    const specData = await specRes.json();
     setVideos(vData);
     setCourses(cData);
+    setSpecializations(Array.isArray(specData) ? specData : []);
     if (cData.length > 0) setFormData(f => ({ ...f, courseId: cData[0]._id }));
     setLoading(false);
   };
@@ -46,7 +50,7 @@ export default function VideosManager() {
     if (res.ok) {
       setShowForm(false);
       fetchData();
-      setFormData({ title: "", youtubeUrl: "", courseId: courses[0]?._id || "", targetAudience: [] });
+      setFormData({ title: "", youtubeUrl: "", courseId: courses[0]?._id || "", targetType: 'all', targetSpecializations: [] });
     }
   };
 
@@ -86,29 +90,32 @@ export default function VideosManager() {
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-semibold mb-1">الفئة المستهدفة للفيديو (اتركه فارغاً للجميع)</label>
-            <div className="flex gap-4 bg-white p-3 border rounded-lg flex-wrap">
-              {[
-                { value: 'technician', label: 'فني / فني سعودي' },
-                { value: 'specialist', label: 'أخصائي (الإمارات-قطر-عمان)' },
-                { value: 'midwifery', label: 'قبالة' }
-              ].map((opt) => (
-                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="accent-primary"
-                    checked={formData.targetAudience.includes(opt.value)}
-                    onChange={(e) => {
-                      const newTypes = e.target.checked
-                        ? [...formData.targetAudience, opt.value]
-                        : formData.targetAudience.filter(t => t !== opt.value);
-                      setFormData({ ...formData, targetAudience: newTypes });
-                    }}
-                  />
-                  <span className="text-sm">{opt.label}</span>
-                </label>
-              ))}
-            </div>
+            <label className="block text-sm font-semibold mb-1">الجمهور المستهدف</label>
+            <select value={formData.targetType} onChange={e => setFormData({ ...formData, targetType: e.target.value as any })} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-primary mb-2">
+              <option value="all">الجميع</option>
+              <option value="specific">تخصصات محددة</option>
+            </select>
+
+            {formData.targetType === 'specific' && (
+              <div className="flex gap-4 bg-white p-3 border rounded-lg flex-wrap max-h-48 overflow-y-auto">
+                {specializations.map((spec) => (
+                  <label key={spec._id} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="accent-primary"
+                      checked={formData.targetSpecializations.includes(spec._id)}
+                      onChange={(e) => {
+                        const newTypes = e.target.checked
+                          ? [...formData.targetSpecializations, spec._id]
+                          : formData.targetSpecializations.filter(t => t !== spec._id);
+                        setFormData({ ...formData, targetSpecializations: newTypes });
+                      }}
+                    />
+                    <span className="text-sm">{spec.arName}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           {formData.youtubeUrl && getYoutubeId(formData.youtubeUrl) && (

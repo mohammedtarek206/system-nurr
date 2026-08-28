@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, X, LogOut, LayoutDashboard, BookOpen } from "lucide-react";
+import { Menu, X, LogOut, LayoutDashboard } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -19,21 +19,19 @@ export default function Header() {
         <div className="flex items-center justify-between h-24 py-2">
           <div className="flex-shrink-0">
             <Link href="/" className="flex items-center">
-              <img 
-                src="/logo.png" 
-                alt="أحمد الأزهري للتأهيل والتدريب المهني" 
+              <img
+                src="/logo.png"
+                alt="أحمد الأزهري للتأهيل والتدريب المهني"
                 className="h-16 md:h-20 w-auto object-contain drop-shadow-sm hover:scale-105 transition-transform duration-300"
               />
             </Link>
           </div>
-          
+
           <nav className="hidden md:flex items-center gap-8">
             <Link href="/" className="text-primary-dark font-semibold hover:text-gold transition-colors">الرئيسية</Link>
-            <Link href="/courses" className="text-primary-dark font-semibold hover:text-gold transition-colors flex items-center gap-1">
-              <BookOpen className="w-4 h-4" />
-              الكورسات
-            </Link>
+            <Link href="/courses" className="text-primary-dark font-semibold hover:text-gold transition-colors">الكورسات</Link>
             <Link href="/exams" className="text-primary-dark font-semibold hover:text-gold transition-colors">الامتحانات</Link>
+            <Link href="/summaries" className="text-primary-dark font-semibold hover:text-gold transition-colors">الملخصات</Link>
             <a
               href="https://web.whatsapp.com/send?phone=201016223940&text=%D8%AA%D9%88%D8%A7%D8%B5%D9%84%20%D9%85%D8%B9%D9%86%D8%A7"
               target="_blank"
@@ -81,10 +79,9 @@ export default function Header() {
         <div className="md:hidden bg-white border-t border-[#D4AF37]/20 absolute w-full">
           <div className="px-4 pt-2 pb-6 space-y-2 shadow-xl">
             <Link href="/" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الرئيسية</Link>
-            <Link href="/courses" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light flex items-center gap-2">
-              <BookOpen className="w-4 h-4" /> الكورسات
-            </Link>
+            <Link href="/courses" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الكورسات</Link>
             <Link href="/exams" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الامتحانات</Link>
+            <Link href="/summaries" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الملخصات</Link>
             <a
               href="https://web.whatsapp.com/send?phone=201016223940"
               target="_blank"

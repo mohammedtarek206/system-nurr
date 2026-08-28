@@ -14,7 +14,8 @@ export interface ICourse extends Document {
   sectionsCount: number;
   lessonsCount: number;
   category: string;
-  targetAudience?: string[];
+  targetSpecializations: mongoose.Types.ObjectId[];
+  targetType: 'all' | 'specific';
   progressionEnabled?: boolean;
   createdAt: Date;
 }
@@ -33,7 +34,8 @@ const CourseSchema = new Schema<ICourse>({
   sectionsCount: { type: Number, default: 0 },
   lessonsCount: { type: Number, default: 0 },
   category: { type: String, default: '' },
-  targetAudience: [{ type: String, enum: ['technician', 'specialist', 'midwifery'] }],
+  targetSpecializations: [{ type: Schema.Types.ObjectId, ref: 'Specialization' }],
+  targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
   progressionEnabled: { type: Boolean, default: false },
 }, { timestamps: true });
 

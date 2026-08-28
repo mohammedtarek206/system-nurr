@@ -8,6 +8,8 @@ export interface ISection extends Document {
   order: number;
   requiredExam?: mongoose.Types.ObjectId;
   passingPercentage?: number;
+  targetSpecializations?: mongoose.Types.ObjectId[];
+  targetType?: 'all' | 'specific';
   createdAt: Date;
 }
 
@@ -19,6 +21,8 @@ const SectionSchema = new Schema<ISection>({
   order: { type: Number, default: 0 },
   requiredExam: { type: Schema.Types.ObjectId, ref: 'Exam' },
   passingPercentage: { type: Number, default: 0 },
+  targetSpecializations: [{ type: Schema.Types.ObjectId, ref: 'Specialization' }],
+  targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
 }, { timestamps: true });
 
 export const Section = mongoose.models.Section || mongoose.model<ISection>('Section', SectionSchema);

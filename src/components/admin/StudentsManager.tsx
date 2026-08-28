@@ -6,14 +6,20 @@ import { Trash2, Users, BookOpen, X, ChevronDown, ChevronUp, Mail, Phone, Calend
 export default function StudentsManager() {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [specializations, setSpecializations] = useState<any[]>([]);
   const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
   const [studentRequests, setStudentRequests] = useState<Record<string, any[]>>({});
 
   const fetchStudents = async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/students");
+    const [res, specRes] = await Promise.all([
+      fetch("/api/admin/students"),
+      fetch("/api/admin/specializations")
+    ]);
     const data = await res.json();
+    const specData = await specRes.json();
     setStudents(Array.isArray(data) ? data : []);
+    setSpecializations(Array.isArray(specData) ? specData : []);
     setLoading(false);
   };
 
@@ -91,14 +97,14 @@ export default function StudentsManager() {
                       {student.deviceId && !student.isBanned && <span className="text-green-600 font-bold bg-green-100 px-2 py-0.5 rounded flex items-center gap-1"><MonitorSmartphone className="w-3 h-3" /> جهاز نشط</span>}
 
                       <select
-                        value={student.userType || ""}
-                        onChange={(e) => handleAction(student._id, 'updateType', { userType: e.target.value })}
+                        value={student.specializationId?._id || student.specializationId || ""}
+                        onChange={(e) => handleAction(student._id, 'updateType', { specializationId: e.target.value })}
                         className="bg-white border rounded px-2 py-0.5 text-xs text-gray-700 outline-none"
                       >
-                        <option value="">نوع الحساب غير محدد</option>
-                        <option value="technician">فني / فني سعودي</option>
-                        <option value="specialist">أخصائي / פني (الإمارات-قطر-عمان)</option>
-                        <option value="midwifery">قبالة</option>
+                        <option value="">نوع التخصص غير محدد</option>
+                        {specializations.map(spec => (
+                          <option key={spec._id} value={spec._id}>{spec.arName}</option>
+                        ))}
                       </select>
                     </div>
                   </div>

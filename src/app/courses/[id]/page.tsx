@@ -40,28 +40,28 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
     try { user = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret'); } catch (e) { }
   }
 
-  if (course.targetAudience && course.targetAudience.length > 0) {
+  if (course.targetType === 'specific') {
     if (!user) notFound(); // Should be logged in to view restricted
-    if (user.role !== 'admin' && !course.targetAudience.includes(user.userType)) {
+    if (user.role !== 'admin' && !course.targetSpecializations?.some((sId: any) => sId.toString() === user.specializationId)) {
       notFound();
     }
   }
 
-  // Filter sections and lessons by targetAudience
+  // Filter sections and lessons by targetSpecializations
   let sections = await Section.find({ courseId: id }).sort({ order: 1 });
   let lessons = await Lesson.find({ courseId: id }).sort({ order: 1 });
 
   sections = sections.filter(sec => {
-    if (!sec.targetAudience || sec.targetAudience.length === 0) return true;
+    if (sec.targetType !== 'specific') return true;
     if (user && user.role === 'admin') return true;
-    if (user && sec.targetAudience.includes(user.userType)) return true;
+    if (user && sec.targetSpecializations?.some((sId: any) => sId.toString() === user.specializationId)) return true;
     return false;
   });
 
   lessons = lessons.filter(les => {
-    if (!les.targetAudience || les.targetAudience.length === 0) return true;
+    if (les.targetType !== 'specific') return true;
     if (user && user.role === 'admin') return true;
-    if (user && les.targetAudience.includes(user.userType)) return true;
+    if (user && les.targetSpecializations?.some((sId: any) => sId.toString() === user.specializationId)) return true;
     return false;
   });
 

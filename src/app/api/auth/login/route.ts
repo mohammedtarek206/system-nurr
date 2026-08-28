@@ -57,13 +57,13 @@ export async function POST(req: Request) {
     await user.save();
 
     const token = jwt.sign(
-      { id: user._id, role: user.role, name: user.fullName, userType: user.userType },
+      { id: user._id, role: user.role, name: user.fullName, specializationId: user.specializationId },
       process.env.JWT_SECRET || 'fallback_secret',
       { expiresIn: '7d' }
     );
 
     const response = NextResponse.json(
-      { message: "تم تسجيل الدخول بنجاح", user: { id: user._id, name: user.fullName, role: user.role, userType: user.userType } },
+      { message: "تم تسجيل الدخول بنجاح", user: { id: user._id, name: user.fullName, role: user.role, specializationId: user.specializationId } },
       { status: 200 }
     );
 

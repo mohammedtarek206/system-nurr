@@ -17,8 +17,8 @@ async function checkAdmin() {
 
 export async function GET() {
   if (!(await checkAdmin())) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  
+
   await connectDB();
-  const students = await User.find({ role: 'student' }).select('-password').sort({ createdAt: -1 });
+  const students = await User.find({ role: 'student' }).populate('specializationId').select('-password').sort({ createdAt: -1 });
   return NextResponse.json(students);
 }

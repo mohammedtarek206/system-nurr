@@ -6,6 +6,7 @@ import { Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Video, Edit, X, Check, 
 export default function CoursesManager() {
   const [courses, setCourses] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [specializations, setSpecializations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editCourse, setEditCourse] = useState<any>(null);
@@ -14,8 +15,8 @@ export default function CoursesManager() {
   const [lessons, setLessons] = useState<Record<string, any[]>>({});
   const [showSectionForm, setShowSectionForm] = useState<string | null>(null);
   const [showLessonForm, setShowLessonForm] = useState<string | null>(null);
-  const [sectionFormData, setSectionFormData] = useState({ title: "", description: "", image: "", requiredExam: "", passingPercentage: 90, targetAudience: [] as string[] });
-  const [lessonFormData, setLessonFormData] = useState({ title: "", description: "", duration: "", zoomLink: "", zoomDate: "", order: 0, targetAudience: [] as string[] });
+  const [sectionFormData, setSectionFormData] = useState({ title: "", description: "", image: "", requiredExam: "", passingPercentage: 90, targetType: 'all', targetSpecializations: [] as string[] });
+  const [lessonFormData, setLessonFormData] = useState({ title: "", description: "", duration: "", zoomLink: "", zoomDate: "", order: 0, targetType: 'all', targetSpecializations: [] as string[] });
   const [savingSection, setSavingSection] = useState(false);
   const [savingLesson, setSavingLesson] = useState(false);
   const [exams, setExams] = useState<any[]>([]); // To list exams in dropdown
@@ -24,22 +25,25 @@ export default function CoursesManager() {
     title: "", description: "", shortDescription: "", image: "",
     price: 0, isFree: false, duration: "", instructor: "",
     status: "active", order: 0, category: "",
-    целевая_аудитория: [], progressionEnabled: false, targetAudience: [] as string[]
+    целевая_аудитория: [], progressionEnabled: false, targetType: "all", targetSpecializations: [] as string[]
   });
 
   const fetchData = async () => {
     setLoading(true);
-    const [crsRes, catRes, exmRes] = await Promise.all([
+    const [crsRes, catRes, exmRes, specRes] = await Promise.all([
       fetch("/api/admin/courses"),
       fetch("/api/admin/categories"),
-      fetch("/api/admin/exams")
+      fetch("/api/admin/exams"),
+      fetch("/api/admin/specializations")
     ]);
     const crsData = await crsRes.json();
     const catData = await catRes.json();
     const exmData = await exmRes.json();
+    const specData = await specRes.json();
     setCourses(Array.isArray(crsData) ? crsData : []);
     setCategories(Array.isArray(catData) ? catData : []);
     setExams(Array.isArray(exmData) ? exmData : []);
+    setSpecializations(Array.isArray(specData) ? specData : []);
     if (catData.length > 0) setFormData(f => ({ ...f, category: f.category || catData[0].name }));
     setLoading(false);
   };
@@ -71,14 +75,14 @@ export default function CoursesManager() {
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(formData) });
     if (res.ok) {
       setShowForm(false); setEditCourse(null);
-      setFormData({ title: "", description: "", shortDescription: "", image: "", price: 0, isFree: false, duration: "", instructor: "", status: "active", order: 0, category: categories[0]?.name || "", целевая_аудитория: [], progressionEnabled: false, targetAudience: [] });
+      setFormData({ title: "", description: "", shortDescription: "", image: "", price: 0, isFree: false, duration: "", instructor: "", status: "active", order: 0, category: categories[0]?.name || "", целевая_аудитория: [], progressionEnabled: false, targetType: 'all', targetSpecializations: [] });
       fetchData();
     }
   };
 
   const handleEdit = (course: any) => {
     setEditCourse(course);
-    setFormData({ title: course.title, description: course.description, shortDescription: course.shortDescription || "", image: course.image || "", price: course.price || 0, isFree: course.isFree || false, duration: course.duration || "", instructor: course.instructor || "", status: course.status || "active", order: course.order || 0, category: course.category || "", targetAudience: course.targetAudience || [], целевая_аудитория: [], progressionEnabled: course.progressionEnabled || false });
+    setFormData({ title: course.title, description: course.description, shortDescription: course.shortDescription || "", image: course.image || "", price: course.price || 0, isFree: course.isFree || false, duration: course.duration || "", instructor: course.instructor || "", status: course.status || "active", order: course.order || 0, category: course.category || "", targetType: course.targetType || "all", targetSpecializations: course.targetSpecializations || [], целевая_аудитория: [], progressionEnabled: course.progressionEnabled || false });
     setShowForm(true);
   };
 
@@ -95,7 +99,7 @@ export default function CoursesManager() {
       body: JSON.stringify(sectionFormData)
     });
     if (res.ok) {
-      setSectionFormData({ title: "", description: "", image: "", requiredExam: "", passingPercentage: 90, targetAudience: [] });
+      setSectionFormData({ title: "", description: "", image: "", requiredExam: "", passingPercentage: 90, targetType: 'all', targetSpecializations: [] });
       setShowSectionForm(null);
       await loadSections(courseId);
     }
@@ -115,7 +119,7 @@ export default function CoursesManager() {
       body: JSON.stringify(lessonFormData)
     });
     if (res.ok) {
-      setLessonFormData({ title: "", description: "", duration: "", zoomLink: "", zoomDate: "", order: 0, targetAudience: [] });
+      setLessonFormData({ title: "", description: "", duration: "", zoomLink: "", zoomDate: "", order: 0, targetType: 'all', targetSpecializations: [] });
       setShowLessonForm(null);
       await loadLessons(courseId, sectionId);
     }
@@ -134,7 +138,7 @@ export default function CoursesManager() {
         <h2 className="text-xl font-bold text-[#061B3D] flex items-center gap-2">
           <BookOpen className="w-6 h-6 text-[#1E3A8A]" /> إدارة الكورسات
         </h2>
-        <button onClick={() => { setShowForm(!showForm); setEditCourse(null); setFormData({ title: "", description: "", shortDescription: "", image: "", price: 0, isFree: false, duration: "", instructor: "", status: "active", order: 0, category: categories[0]?.name || "", целевая_аудитория: [], progressionEnabled: false, targetAudience: [] }); }}
+        <button onClick={() => { setShowForm(!showForm); setEditCourse(null); setFormData({ title: "", description: "", shortDescription: "", image: "", price: 0, isFree: false, duration: "", instructor: "", status: "active", order: 0, category: categories[0]?.name || "", целевая_аудитория: [], progressionEnabled: false, targetType: 'all', targetSpecializations: [] }); }}
           className="bg-[#1E3A8A] text-white font-bold px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-[#061B3D] transition">
           {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           {showForm ? "إلغاء" : "إضافة كورس"}
@@ -200,29 +204,32 @@ export default function CoursesManager() {
           </div>
           <div className="md:col-span-2 grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold mb-1">الفئة المستهدفة (اتركه فارغاً ليتاح للجميع)</label>
-              <div className="flex flex-col gap-2">
-                {[
-                  { value: 'technician', label: 'فني / فني سعودي' },
-                  { value: 'specialist', label: 'أخصائي / פني (الإمارات-قطر-عمان)' },
-                  { value: 'midwifery', label: 'قبالة' }
-                ].map((opt) => (
-                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer bg-white p-2 border rounded-lg">
-                    <input
-                      type="checkbox"
-                      className="accent-[#1E3A8A] w-4 h-4"
-                      checked={formData.targetAudience.includes(opt.value)}
-                      onChange={(e) => {
-                        const newTypes = e.target.checked
-                          ? [...formData.targetAudience, opt.value]
-                          : formData.targetAudience.filter(t => t !== opt.value);
-                        setFormData({ ...formData, targetAudience: newTypes });
-                      }}
-                    />
-                    <span className="text-sm font-medium">{opt.label}</span>
-                  </label>
-                ))}
-              </div>
+              <label className="block text-sm font-semibold mb-1">الجمهور المستهدف</label>
+              <select value={formData.targetType} onChange={e => setFormData({ ...formData, targetType: e.target.value as any })} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-[#1E3A8A] mb-2">
+                <option value="all">الجميع</option>
+                <option value="specific">تخصصات محددة</option>
+              </select>
+
+              {formData.targetType === 'specific' && (
+                <div className="flex flex-col gap-2 mt-2 bg-white p-3 border rounded-lg max-h-48 overflow-y-auto">
+                  {specializations.map((spec) => (
+                    <label key={spec._id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="accent-[#1E3A8A] w-4 h-4"
+                        checked={formData.targetSpecializations.includes(spec._id)}
+                        onChange={(e) => {
+                          const newTypes = e.target.checked
+                            ? [...formData.targetSpecializations, spec._id]
+                            : formData.targetSpecializations.filter(t => t !== spec._id);
+                          setFormData({ ...formData, targetSpecializations: newTypes });
+                        }}
+                      />
+                      <span className="text-sm font-medium">{spec.arName}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-2 shadow-sm rounded-xl p-4 bg-white border border-gray-100">
@@ -287,7 +294,7 @@ export default function CoursesManager() {
                     <h4 className="font-bold text-[#061B3D] flex items-center gap-2">
                       <Layers className="w-4 h-4 text-[#D4AF37]" /> الأقسام ({sections[course._id]?.length || 0})
                     </h4>
-                    <button onClick={() => { setShowSectionForm(showSectionForm === course._id ? null : course._id); setSectionFormData({ title: "", description: "", image: "", requiredExam: "", passingPercentage: 90, targetAudience: [] }); }}
+                    <button onClick={() => { setShowSectionForm(showSectionForm === course._id ? null : course._id); setSectionFormData({ title: "", description: "", image: "", requiredExam: "", passingPercentage: 90, targetType: 'all', targetSpecializations: [] }); }}
                       className="text-sm bg-[#D4AF37]/10 text-[#B8860B] font-bold px-3 py-1.5 rounded-lg hover:bg-[#D4AF37]/20 transition flex items-center gap-1">
                       <Plus className="w-3.5 h-3.5" /> إضافة قسم
                     </button>
@@ -352,7 +359,7 @@ export default function CoursesManager() {
                                 onClick={async () => {
                                   await loadLessons(course._id, section._id);
                                   setShowLessonForm(showLessonForm === section._id ? null : section._id);
-                                  setLessonFormData({ title: "", description: "", duration: "", zoomLink: "", zoomDate: "", order: 0, targetAudience: [] });
+                                  setLessonFormData({ title: "", description: "", duration: "", zoomLink: "", zoomDate: "", order: 0, targetType: 'all', targetSpecializations: [] });
                                 }}
                                 className="text-xs bg-green-50 text-green-700 font-bold px-2 py-1 rounded-lg hover:bg-green-100 transition flex items-center gap-1">
                                 <Video className="w-3 h-3" /> محاضرات

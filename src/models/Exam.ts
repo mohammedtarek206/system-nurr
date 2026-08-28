@@ -18,7 +18,8 @@ export interface IExam extends Document {
   randomizeAnswers?: boolean;
   allowRetake?: boolean;
   maxAttempts?: number;
-  targetAudience?: string[];
+  targetSpecializations: mongoose.Types.ObjectId[];
+  targetType: 'all' | 'specific';
   createdAt: Date;
 }
 
@@ -40,7 +41,8 @@ const ExamSchema = new Schema<IExam>({
   randomizeAnswers: { type: Boolean, default: false },
   allowRetake: { type: Boolean, default: false },
   maxAttempts: { type: Number, default: 1 },
-  targetAudience: [{ type: String, enum: ['technician', 'specialist', 'midwifery'] }],
+  targetSpecializations: [{ type: Schema.Types.ObjectId, ref: 'Specialization' }],
+  targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
 }, { timestamps: true });
 
 export const Exam = mongoose.models.Exam || mongoose.model<IExam>('Exam', ExamSchema);

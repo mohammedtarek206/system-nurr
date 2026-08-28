@@ -5,6 +5,7 @@ import { Plus, Trash2, Edit, CheckCircle, FileText, X } from "lucide-react";
 
 export default function ExamsManager() {
   const [exams, setExams] = useState<any[]>([]);
+  const [specializations, setSpecializations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [selectedExam, setSelectedExam] = useState<any>(null); // For questions modal
@@ -35,18 +36,22 @@ export default function ExamsManager() {
     maxAttempts: 0,
     randomizeQuestions: false,
     randomizeAnswers: false,
-    targetAudience: [] as string[]
+    targetType: 'all',
+    targetSpecializations: [] as string[]
   });
 
   const fetchData = async () => {
-    const [examsRes, catRes] = await Promise.all([
+    const [examsRes, catRes, specRes] = await Promise.all([
       fetch("/api/admin/exams"),
-      fetch("/api/admin/categories")
+      fetch("/api/admin/categories"),
+      fetch("/api/admin/specializations")
     ]);
     const examsData = await examsRes.json();
     const catData = await catRes.json();
+    const specData = await specRes.json();
     setExams(examsData);
     setCategories(catData);
+    setSpecializations(Array.isArray(specData) ? specData : []);
     if (catData.length > 0) {
       setFormData(f => ({ ...f, category: f.category || catData[0].name }));
     }
@@ -67,7 +72,7 @@ export default function ExamsManager() {
     if (res.ok) {
       setShowForm(false);
       fetchData();
-      setFormData({ title: "", category: categories[0]?.name || "", duration: 60, passingScore: 50, allowRetake: true, maxAttempts: 0, randomizeQuestions: false, randomizeAnswers: false, targetAudience: [] });
+      setFormData({ title: "", category: categories[0]?.name || "", duration: 60, passingScore: 50, allowRetake: true, maxAttempts: 0, randomizeQuestions: false, randomizeAnswers: false, targetType: 'all', targetSpecializations: [] });
     }
   };
 
@@ -169,29 +174,32 @@ export default function ExamsManager() {
 
             <div className="md:col-span-2 grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-1">الفئة المستهدفة (اتركه فارغاً للجميع)</label>
-                <div className="flex flex-col gap-2 bg-white p-3 border rounded-lg">
-                  {[
-                    { value: 'technician', label: 'فني / فني سعودي' },
-                    { value: 'specialist', label: 'أخصائي (الإمارات-قطر-عمان)' },
-                    { value: 'midwifery', label: 'قبالة' }
-                  ].map((opt) => (
-                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="accent-primary"
-                        checked={formData.targetAudience.includes(opt.value)}
-                        onChange={(e) => {
-                          const newTypes = e.target.checked
-                            ? [...formData.targetAudience, opt.value]
-                            : formData.targetAudience.filter(t => t !== opt.value);
-                          setFormData({ ...formData, targetAudience: newTypes });
-                        }}
-                      />
-                      <span className="text-sm">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
+                <label className="block text-sm font-semibold mb-1">الجمهور المستهدف</label>
+                <select value={formData.targetType} onChange={e => setFormData({ ...formData, targetType: e.target.value as any })} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-primary mb-2">
+                  <option value="all">الجميع</option>
+                  <option value="specific">تخصصات محددة</option>
+                </select>
+
+                {formData.targetType === 'specific' && (
+                  <div className="flex flex-col gap-2 bg-white p-3 border rounded-lg max-h-48 overflow-y-auto">
+                    {specializations.map((spec) => (
+                      <label key={spec._id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="accent-primary w-4 h-4"
+                          checked={formData.targetSpecializations.includes(spec._id)}
+                          onChange={(e) => {
+                            const newTypes = e.target.checked
+                              ? [...formData.targetSpecializations, spec._id]
+                              : formData.targetSpecializations.filter(t => t !== spec._id);
+                            setFormData({ ...formData, targetSpecializations: newTypes });
+                          }}
+                        />
+                        <span className="text-sm">{spec.arName}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3 bg-white p-3 border rounded-lg">

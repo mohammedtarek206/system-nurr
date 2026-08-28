@@ -42,18 +42,18 @@ export default async function StudentDashboard({ searchParams }: { searchParams:
   if (currentTab === 'courses' || currentTab === 'overview') {
     courses = await Course.find({
       $or: [
-        { targetAudience: { $exists: false } },
-        { targetAudience: { $size: 0 } },
-        { targetAudience: user.userType }
+        { targetType: 'all' },
+        { targetType: { $exists: false } },
+        { targetType: 'specific', targetSpecializations: user.specializationId }
       ]
     }).sort({ createdAt: -1 });
   }
   if (currentTab === 'lectures' || currentTab === 'overview') {
     videos = await VideoModel.find({
       $or: [
-        { targetAudience: { $exists: false } },
-        { targetAudience: { $size: 0 } },
-        { targetAudience: user.userType }
+        { targetType: 'all' },
+        { targetType: { $exists: false } },
+        { targetType: 'specific', targetSpecializations: user.specializationId }
       ]
     }).populate('courseId').sort({ createdAt: -1 });
   }
@@ -69,9 +69,9 @@ export default async function StudentDashboard({ searchParams }: { searchParams:
         },
         {
           $or: [
-            { targetAudience: { $exists: false } },
-            { targetAudience: { $size: 0 } },
-            { targetAudience: user.userType }
+            { targetType: 'all' },
+            { targetType: { $exists: false } },
+            { targetType: 'specific', targetSpecializations: user.specializationId }
           ]
         }
       ]

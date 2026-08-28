@@ -6,7 +6,7 @@ export interface IUser extends Document {
   phone: string;
   password?: string;
   role: 'student' | 'admin';
-  userType?: 'technician' | 'specialist' | 'midwifery';
+  specializationId?: mongoose.Types.ObjectId;
   isBanned?: boolean;
   banReason?: string;
   activeSession?: string;
@@ -20,7 +20,7 @@ const UserSchema = new Schema<IUser>({
   phone: { type: String, required: true },
   password: { type: String, required: true },
   role: { type: String, enum: ['student', 'admin'], default: 'student' },
-  userType: { type: String, enum: ['technician', 'specialist', 'midwifery'] },
+  specializationId: { type: Schema.Types.ObjectId, ref: 'Specialization' },
   isBanned: { type: Boolean, default: false },
   banReason: { type: String, default: '' },
   activeSession: { type: String, default: '' },

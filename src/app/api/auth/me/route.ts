@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "هذا الحساب مرتبط بجهاز آخر حالياً. يرجى التواصل مع الإدارة." }, { status: 403 });
     }
 
-    return NextResponse.json({ user: { id: user._id, name: user.fullName, role: user.role, userType: user.userType } }, { status: 200 });
+    return NextResponse.json({ user: { id: user._id, name: user.fullName, role: user.role, specializationId: user.specializationId } }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ message: "Invalid token" }, { status: 401 });
   }

@@ -7,9 +7,9 @@ import jwt from 'jsonwebtoken';
 export async function POST(req: Request) {
   try {
     await connectDB();
-    const { fullName, email, phone, password, userType } = await req.json();
+    const { fullName, email, phone, password, specializationId } = await req.json();
 
-    if (!fullName || !email || !phone || !password || !userType) {
+    if (!fullName || !email || !phone || !password || !specializationId) {
       return NextResponse.json({ message: "جميع الحقول مطلوبة" }, { status: 400 });
     }
 
@@ -26,17 +26,17 @@ export async function POST(req: Request) {
       phone,
       password: hashedPassword,
       role: 'student',
-      userType
+      specializationId
     });
 
     const token = jwt.sign(
-      { id: newUser._id, role: newUser.role, name: newUser.fullName, userType: newUser.userType },
+      { id: newUser._id, role: newUser.role, name: newUser.fullName, specializationId: newUser.specializationId },
       process.env.JWT_SECRET || 'fallback_secret',
       { expiresIn: '7d' }
     );
 
     const response = NextResponse.json(
-      { message: "تم إنشاء الحساب بنجاح", user: { id: newUser._id, name: newUser.fullName, role: newUser.role, userType: newUser.userType } },
+      { message: "تم إنشاء الحساب بنجاح", user: { id: newUser._id, name: newUser.fullName, role: newUser.role, specializationId: newUser.specializationId } },
       { status: 201 }
     );
 

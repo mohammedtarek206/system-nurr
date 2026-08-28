@@ -46,7 +46,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       user.deviceId = '';
       user.activeSession = '';
     } else if (data.action === 'updateType') {
-      user.userType = data.userType;
+      user.specializationId = data.specializationId;
     }
 
     await user.save();
