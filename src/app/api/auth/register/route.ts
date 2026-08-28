@@ -3,6 +3,8 @@ import connectDB from '@/lib/db';
 import { User } from '@/models/User';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
+import { Specialization } from '@/models/Specialization';
 
 export async function POST(req: Request) {
   try {
@@ -20,13 +22,24 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    let validSpecId = specializationId;
+    if (!mongoose.Types.ObjectId.isValid(specializationId)) {
+      let spec = await Specialization.findOne();
+      if (!spec) {
+        spec = await Specialization.create({
+          name: "Technician", arName: "فني / فني سعودي", slug: "technician", icon: "👨‍⚕️", active: true
+        });
+      }
+      validSpecId = spec._id;
+    }
+
     const newUser = await User.create({
       fullName,
       email,
       phone,
       password: hashedPassword,
       role: 'student',
-      specializationId
+      specializationId: validSpecId
     });
 
     const token = jwt.sign(

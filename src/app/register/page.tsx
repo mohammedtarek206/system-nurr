@@ -25,14 +25,27 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const DEFAULT_FALLBACK_SPECS = [
+    { _id: "tech_default", arName: "فني / فني سعودي", icon: "👨‍⚕️" },
+    { _id: "spec_default", arName: "أخصائي / فني (الإمارات-قطر-عمان)", icon: "🏥" },
+    { _id: "mid_default", arName: "قبالة", icon: "👶" }
+  ];
+
   useEffect(() => {
     fetch("/api/specializations")
       .then(res => res.json())
       .then(data => {
-        setSpecializations(Array.isArray(data) ? data : []);
+        if (Array.isArray(data) && data.length > 0) {
+          setSpecializations(data);
+        } else {
+          setSpecializations(DEFAULT_FALLBACK_SPECS);
+        }
         setLoadingSpecs(false);
       })
-      .catch(() => setLoadingSpecs(false));
+      .catch(() => {
+        setSpecializations(DEFAULT_FALLBACK_SPECS);
+        setLoadingSpecs(false);
+      });
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,8 +121,8 @@ export default function RegisterPage() {
                       key={spec._id}
                       onClick={() => setFormData({ ...formData, specializationId: spec._id })}
                       className={`cursor-pointer border-2 rounded-2xl p-4 flex flex-col items-center text-center transition-all duration-300 relative ${formData.specializationId === spec._id
-                          ? 'border-gold bg-[#D4AF37]/5 shadow-sm transform -translate-y-1'
-                          : 'border-gray-100 hover:border-gray-300 hover:bg-gray-50'
+                        ? 'border-gold bg-[#D4AF37]/5 shadow-sm transform -translate-y-1'
+                        : 'border-gray-100 hover:border-gray-300 hover:bg-gray-50'
                         }`}
                     >
                       {formData.specializationId === spec._id && (
