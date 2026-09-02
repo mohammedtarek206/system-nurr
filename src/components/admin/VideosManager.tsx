@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Trash2, Video as VideoIcon, Edit, Eye, Search, CheckCircle, XCircle, AlertTriangle, X, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, Trash2, Video as VideoIcon, Edit, Eye, Search, CheckCircle, XCircle, AlertTriangle, X, ExternalLink, Loader2, Layers, Check } from "lucide-react";
 
 export default function VideosManager() {
   const [videos, setVideos] = useState<any[]>([]);
@@ -9,12 +9,20 @@ export default function VideosManager() {
   const [sections, setSections] = useState<any[]>([]);
   const [specializations, setSpecializations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sectionsLoading, setSectionsLoading] = useState(false);
 
   // Form & Edit state
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Quick Add Section Modal State
+  const [showAddSectionModal, setShowAddSectionModal] = useState(false);
+  const [newSectionTitle, setNewSectionTitle] = useState("");
+  const [newSectionDesc, setNewSectionDesc] = useState("");
+  const [savingSection, setSavingSection] = useState(false);
 
   // Modals
   const [deleteModalVideo, setDeleteModalVideo] = useState<any>(null);
@@ -27,6 +35,7 @@ export default function VideosManager() {
   const [filterPlatform, setFilterPlatform] = useState("");
   const [filterSpecialization, setFilterSpecialization] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterSectionsList, setFilterSectionsList] = useState<any[]>([]);
 
   const initialFormState = {
     title: "",
@@ -45,6 +54,13 @@ export default function VideosManager() {
 
   const [formData, setFormData] = useState(initialFormState);
 
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 4000);
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -60,14 +76,9 @@ export default function VideosManager() {
       setVideos(Array.isArray(vData) ? vData : []);
       setCourses(Array.isArray(cData) ? cData : []);
       setSpecializations(Array.isArray(specData) ? specData : []);
-
-      if (cData.length > 0 && !formData.courseId) {
-        const firstCourseId = cData[0]._id;
-        setFormData(f => ({ ...f, courseId: firstCourseId }));
-        fetchSectionsForCourse(firstCourseId);
-      }
     } catch (err) {
-      console.error(err);
+      console.error("Fetch data error:", err);
+      showToast("حدث خطأ أثناء تحميل البيانات", "error");
     } finally {
       setLoading(false);
     }
@@ -78,12 +89,16 @@ export default function VideosManager() {
       setSections([]);
       return;
     }
+    setSectionsLoading(true);
     try {
       const res = await fetch(`/api/admin/courses/${courseId}/sections`);
       const data = await res.json();
       setSections(Array.isArray(data) ? data : []);
-    } catch {
+    } catch (err) {
+      console.error("Fetch sections error:", err);
       setSections([]);
+    } finally {
+      setSectionsLoading(false);
     }
   };
 
@@ -91,6 +106,24 @@ export default function VideosManager() {
     fetchData();
   }, []);
 
+  // Handle Filter Course Change
+  const handleFilterCourseChange = async (cId: string) => {
+    setFilterCourse(cId);
+    setFilterSection("");
+    if (!cId) {
+      setFilterSectionsList([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/courses/${cId}/sections`);
+      const data = await res.json();
+      setFilterSectionsList(Array.isArray(data) ? data : []);
+    } catch {
+      setFilterSectionsList([]);
+    }
+  };
+
+  // Handle Course Change in Form (Requirement 16: Clear section & force selection)
   const handleCourseChange = (cId: string) => {
     setFormData(prev => ({ ...prev, courseId: cId, sectionId: "" }));
     fetchSectionsForCourse(cId);
@@ -106,10 +139,86 @@ export default function VideosManager() {
     }
   };
 
+  const handleOpenNewForm = () => {
+    setErrorMsg("");
+    setEditingId(null);
+    if (courses.length > 0) {
+      const defaultCourseId = courses[0]._id;
+      setFormData({
+        ...initialFormState,
+        courseId: defaultCourseId,
+        sectionId: ""
+      });
+      fetchSectionsForCourse(defaultCourseId);
+    } else {
+      setFormData(initialFormState);
+      setSections([]);
+    }
+    setShowForm(true);
+  };
+
+  // Quick Section Addition Modal Submit
+  const handleAddSectionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSectionTitle.trim()) return;
+    if (!formData.courseId) {
+      alert("من فضلك اختر الكورس أولاً");
+      return;
+    }
+
+    setSavingSection(true);
+    try {
+      const res = await fetch(`/api/admin/courses/${formData.courseId}/sections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newSectionTitle.trim(), description: newSectionDesc.trim() })
+      });
+      if (res.ok) {
+        const createdSec = await res.json();
+        setNewSectionTitle("");
+        setNewSectionDesc("");
+        setShowAddSectionModal(false);
+        showToast("تم إضافة القسم بنجاح وتحديده للمحاضرة");
+        // Reload sections for current course & select newly created section
+        await fetchSectionsForCourse(formData.courseId);
+        if (createdSec?._id) {
+          setFormData(prev => ({ ...prev, sectionId: createdSec._id }));
+        }
+      } else {
+        alert("حدث خطأ أثناء إضافة القسم");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("تعذر الاتصال بالسيرفر لإضافة القسم");
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  // Submit Video Form (Requirement 6 & 7: Validate sectionId, prevent empty string)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
 
+    // 1. Course validation
+    if (!formData.courseId || !formData.courseId.trim()) {
+      setErrorMsg("من فضلك اختر الكورس أولاً");
+      return;
+    }
+
+    // 2. Section validation (Required by requirement 6 & 7)
+    if (!formData.sectionId || !formData.sectionId.trim() || formData.sectionId === "") {
+      setErrorMsg("من فضلك اختر القسم الذي ستضاف إليه المحاضرة");
+      return;
+    }
+
+    // 3. Title validation
+    if (!formData.title || !formData.title.trim()) {
+      setErrorMsg("من فضلك أدخل عنوان المحاضرة");
+      return;
+    }
+
+    // 4. URL validation
     if (!validateUrl(formData.videoUrl)) {
       setErrorMsg("يرجى إدخال رابط صحيح للمحاضرة");
       return;
@@ -127,16 +236,21 @@ export default function VideosManager() {
       });
 
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || "حدث خطأ أثناء الحفظ");
+      if (!res.ok || !data.success && data.message) {
+        let msg = data.message || "حدث خطأ أثناء الحفظ";
+        if (msg.includes("Cast to ObjectId failed")) {
+          msg = "حدث خطأ في بيانات القسم، برجاء اختيار القسم مرة أخرى.";
+        }
+        throw new Error(msg);
       }
 
+      showToast(editingId ? "تم تحديث المحاضرة بنجاح" : "تم إضافة المحاضرة بنجاح");
       setShowForm(false);
       setEditingId(null);
       setFormData(initialFormState);
       fetchData();
     } catch (err: any) {
-      setErrorMsg(err.message);
+      setErrorMsg(err.message || "تعذر حفظ المحاضرة، يرجى مراجعة البيانات");
     } finally {
       setSaving(false);
     }
@@ -144,7 +258,9 @@ export default function VideosManager() {
 
   const handleEdit = (video: any) => {
     setEditingId(video._id);
+    setErrorMsg("");
     const cId = video.courseId?._id || video.courseId || "";
+    const secId = video.sectionId?._id || video.sectionId || "";
     setFormData({
       title: video.title || "",
       description: video.description || "",
@@ -153,7 +269,7 @@ export default function VideosManager() {
       thumbnail: video.thumbnail || "",
       duration: video.duration || "",
       courseId: cId,
-      sectionId: video.sectionId?._id || video.sectionId || "",
+      sectionId: secId,
       targetType: video.targetType || "all",
       targetSpecializations: (video.targetSpecializations || []).map((s: any) => s._id || s),
       status: video.status || "published",
@@ -166,14 +282,18 @@ export default function VideosManager() {
   const handleToggleStatus = async (video: any) => {
     const newStatus = video.status === "published" ? "draft" : "published";
     try {
-      await fetch(`/api/admin/videos/${video._id}`, {
+      const res = await fetch(`/api/admin/videos/${video._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })
       });
-      fetchData();
+      if (res.ok) {
+        showToast(`تم تغيير حالة المحاضرة إلى ${newStatus === 'published' ? 'منشورة' : 'مسودة'}`);
+        fetchData();
+      }
     } catch (e) {
       console.error(e);
+      showToast("حدث خطأ أثناء تغيير الحالة", "error");
     }
   };
 
@@ -183,10 +303,13 @@ export default function VideosManager() {
       const res = await fetch(`/api/admin/videos/${deleteModalVideo._id}`, { method: "DELETE" });
       if (res.ok) {
         setDeleteModalVideo(null);
+        showToast("تم حذف المحاضرة بنجاح");
         fetchData();
+      } else {
+        showToast("تعذر حذف المحاضرة", "error");
       }
     } catch (err) {
-      alert("حدث خطأ أثناء الحذف");
+      showToast("حدث خطأ أثناء الحذف", "error");
     }
   };
 
@@ -205,7 +328,16 @@ export default function VideosManager() {
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm relative">
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-xl font-bold flex items-center gap-2 border text-sm transition-all animate-bounce ${toast.type === 'success' ? 'bg-green-600 text-white border-green-700' : 'bg-red-600 text-white border-red-700'
+          }`}>
+          {toast.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+          {toast.message}
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
         <div>
@@ -221,13 +353,7 @@ export default function VideosManager() {
               setShowForm(false);
               setEditingId(null);
             } else {
-              setEditingId(null);
-              setFormData(initialFormState);
-              if (courses.length > 0) {
-                setFormData(f => ({ ...f, courseId: courses[0]._id }));
-                fetchSectionsForCourse(courses[0]._id);
-              }
-              setShowForm(true);
+              handleOpenNewForm();
             }
           }}
           className="bg-primary text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-primary-dark transition shadow-md"
@@ -240,8 +366,8 @@ export default function VideosManager() {
       {showForm && (
         <form onSubmit={handleSubmit} className="mb-8 bg-gray-50 p-6 rounded-2xl border border-gray-200 shadow-sm space-y-6" dir="rtl">
           <div className="flex justify-between items-center border-b pb-3">
-            <h3 className="font-bold text-lg text-primary-dark">
-              {editingId ? "تعديل المحاضرة" : "إضافة محاضرة / فيديو جديد"}
+            <h3 className="font-bold text-lg text-primary-dark flex items-center gap-2">
+              {editingId ? "✏️ تعديل المحاضرة" : "➕ إضافة محاضرة / فيديو جديد"}
             </h3>
             <button type="button" onClick={() => setShowForm(false)} className="text-gray-400 hover:text-red-500">
               <X className="w-5 h-5" />
@@ -305,34 +431,72 @@ export default function VideosManager() {
               />
             </div>
 
-            {/* Course & Section */}
+            {/* Course Selection */}
             <div>
               <label className="block text-sm font-semibold mb-2 text-gray-700">الكورس المرتبط (Course) *</label>
               <select
                 required
                 value={formData.courseId}
                 onChange={e => handleCourseChange(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 outline-none focus:border-primary bg-white"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 outline-none focus:border-primary bg-white font-semibold"
               >
-                <option value="" disabled>اختر الكورس...</option>
+                <option value="" disabled>-- اختر الكورس --</option>
                 {courses.map(c => (
-                  <option key={c._id} value={c._id}>{c.title} ({c.category})</option>
+                  <option key={c._id} value={c._id}>{c.title} ({c.category || 'عام'})</option>
                 ))}
               </select>
             </div>
 
+            {/* Section Selection (Requirements 5, 6, 20, 21) */}
             <div>
-              <label className="block text-sm font-semibold mb-2 text-gray-700">القسم داخل الكورس (Section)</label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-semibold text-gray-700">القسم داخل الكورس (Section) *</label>
+                {formData.courseId && sections.length === 0 && !sectionsLoading && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSectionModal(true)}
+                    className="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-1 rounded-lg hover:bg-amber-200 transition flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> إضافة قسم كورس
+                  </button>
+                )}
+              </div>
               <select
+                required
+                disabled={!formData.courseId || sectionsLoading || sections.length === 0}
                 value={formData.sectionId}
                 onChange={e => setFormData({ ...formData, sectionId: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 outline-none focus:border-primary bg-white"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 outline-none focus:border-primary bg-white font-semibold disabled:bg-gray-100 disabled:text-gray-400"
               >
-                <option value="">عام (بدون قسم محدد)</option>
-                {sections.map(sec => (
-                  <option key={sec._id} value={sec._id}>{sec.title}</option>
-                ))}
+                {!formData.courseId ? (
+                  <option value="">اختر الكورس أولاً</option>
+                ) : sectionsLoading ? (
+                  <option value="">جاري تحميل الأقسام...</option>
+                ) : sections.length === 0 ? (
+                  <option value="">لا توجد أقسام لهذا الكورس</option>
+                ) : (
+                  <>
+                    <option value="" disabled>-- اختر القسم --</option>
+                    {sections.map(sec => (
+                      <option key={sec._id} value={sec._id}>{sec.title}</option>
+                    ))}
+                  </>
+                )}
               </select>
+
+              {/* Requirement 20 & 21 Empty State Notice */}
+              {formData.courseId && !sectionsLoading && sections.length === 0 && (
+                <div className="mt-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs p-3 rounded-xl flex items-center justify-between gap-2">
+                  <span>لا توجد أقسام لهذا الكورس. قم بإضافة قسم أولاً لتتمكن من إضافة المحاضرة.</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSectionModal(true)}
+                    className="bg-amber-600 text-white font-bold px-3 py-1.5 rounded-lg hover:bg-amber-700 shrink-0 transition"
+                  >
+                    إضافة قسم
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Description */}
@@ -442,7 +606,7 @@ export default function VideosManager() {
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || sectionsLoading || !formData.sectionId}
               className="px-8 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition flex items-center gap-2 disabled:opacity-50 shadow-md"
             >
               {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : editingId ? "تحديث المحاضرة" : "حفظ المحاضرة"}
@@ -465,14 +629,21 @@ export default function VideosManager() {
         </div>
 
         <div>
-          <select value={filterCourse} onChange={e => setFilterCourse(e.target.value)} className="w-full px-3 py-2 rounded-lg border outline-none text-xs bg-white">
+          <select value={filterCourse} onChange={e => handleFilterCourseChange(e.target.value)} className="w-full px-3 py-2 rounded-lg border outline-none text-xs bg-white font-semibold">
             <option value="">كل الكورسات</option>
             {courses.map(c => <option key={c._id} value={c._id}>{c.title}</option>)}
           </select>
         </div>
 
         <div>
-          <select value={filterPlatform} onChange={e => setFilterPlatform(e.target.value)} className="w-full px-3 py-2 rounded-lg border outline-none text-xs bg-white">
+          <select value={filterSection} onChange={e => setFilterSection(e.target.value)} className="w-full px-3 py-2 rounded-lg border outline-none text-xs bg-white font-semibold">
+            <option value="">كل الأقسام</option>
+            {filterSectionsList.map(sec => <option key={sec._id} value={sec._id}>{sec.title}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <select value={filterPlatform} onChange={e => setFilterPlatform(e.target.value)} className="w-full px-3 py-2 rounded-lg border outline-none text-xs bg-white font-semibold">
             <option value="">كل المنصات</option>
             <option value="zoom">Zoom</option>
             <option value="freeconference">Free Conference</option>
@@ -481,14 +652,7 @@ export default function VideosManager() {
         </div>
 
         <div>
-          <select value={filterSpecialization} onChange={e => setFilterSpecialization(e.target.value)} className="w-full px-3 py-2 rounded-lg border outline-none text-xs bg-white">
-            <option value="">كل التخصصات</option>
-            {specializations.map(s => <option key={s._id} value={s._id}>{s.arName}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full px-3 py-2 rounded-lg border outline-none text-xs bg-white">
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full px-3 py-2 rounded-lg border outline-none text-xs bg-white font-semibold">
             <option value="">كل الحالات</option>
             <option value="published">منشورة</option>
             <option value="draft">مسودة</option>
@@ -509,10 +673,10 @@ export default function VideosManager() {
           <table className="w-full text-right text-sm">
             <thead className="bg-gray-50 text-gray-600 font-bold border-b">
               <tr>
-                <th className="p-3">العنوان</th>
                 <th className="p-3">الكورس</th>
                 <th className="p-3">القسم</th>
-                <th className="p-3">المنصة (Platform)</th>
+                <th className="p-3">عنوان المحاضرة</th>
+                <th className="p-3">المنصة</th>
                 <th className="p-3">التخصصات المستهدفة</th>
                 <th className="p-3">الحالة</th>
                 <th className="p-3">التاريخ</th>
@@ -522,12 +686,12 @@ export default function VideosManager() {
             <tbody>
               {filteredVideos.map(video => (
                 <tr key={video._id} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                  <td className="p-3 text-gray-800 font-bold">{video.courseId?.title || "كورس غير معروف"}</td>
+                  <td className="p-3 font-semibold text-primary">{video.sectionId?.title || "—"}</td>
                   <td className="p-3">
-                    <div className="font-bold text-primary-dark">{video.title}</div>
+                    <div className="font-bold text-gray-900">{video.title}</div>
                     {video.description && <div className="text-xs text-gray-500 line-clamp-1">{video.description}</div>}
                   </td>
-                  <td className="p-3 text-gray-700 font-semibold">{video.courseId?.title || "كورس غير معروف"}</td>
-                  <td className="p-3 text-gray-500">{video.sectionId?.title || "عام"}</td>
                   <td className="p-3">
                     <span className={`px-2.5 py-1 rounded-full font-bold text-xs ${video.videoType === 'zoom' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
                         video.videoType === 'freeconference' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
@@ -542,7 +706,7 @@ export default function VideosManager() {
                     ) : (
                       <div className="flex flex-wrap gap-1">
                         {video.targetSpecializations?.map((s: any) => (
-                          <span key={s._id || s} className="bg-gold/10 text-gold-dark font-bold px-1.5 py-0.5 rounded border border-gold/20">
+                          <span key={s._id || s} className="bg-amber-50 text-amber-800 font-bold px-1.5 py-0.5 rounded border border-amber-200">
                             {s.arName || "تخصص"}
                           </span>
                         ))}
@@ -568,21 +732,21 @@ export default function VideosManager() {
                     <div className="flex items-center justify-center gap-1.5">
                       <button
                         onClick={() => setPreviewVideo(video)}
-                        className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+                        className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
                         title="معاينة الرابط"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleEdit(video)}
-                        className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"
+                        className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition"
                         title="تعديل"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setDeleteModalVideo(video)}
-                        className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
+                        className="p-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
                         title="حذف المحاضرة"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -593,6 +757,61 @@ export default function VideosManager() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Quick Add Section Modal */}
+      {showAddSectionModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4" dir="rtl">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="font-bold text-lg text-primary-dark flex items-center gap-2">
+                <Layers className="w-5 h-5 text-amber-600" /> إضافة قسم جديد للكورس
+              </h3>
+              <button onClick={() => setShowAddSectionModal(false)} className="text-gray-400 hover:text-red-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleAddSectionSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1 text-gray-700">اسم القسم *</label>
+                <input
+                  required
+                  type="text"
+                  value={newSectionTitle}
+                  onChange={e => setNewSectionTitle(e.target.value)}
+                  placeholder="مثال: Nursing Fundamentals"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 outline-none focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1 text-gray-700">وصف القسم (اختياري)</label>
+                <textarea
+                  rows={2}
+                  value={newSectionDesc}
+                  onChange={e => setNewSectionDesc(e.target.value)}
+                  placeholder="وصف مختصر لمحتوى هذا القسم..."
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 outline-none focus:border-primary resize-none text-sm"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddSectionModal(false)}
+                  className="px-5 py-2 bg-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-300 transition text-sm"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingSection}
+                  className="px-6 py-2 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 transition text-sm flex items-center gap-2 disabled:opacity-50"
+                >
+                  {savingSection ? <Loader2 className="w-4 h-4 animate-spin" /> : "حفظ القسم"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -610,13 +829,13 @@ export default function VideosManager() {
                 onClick={() => setDeleteModalVideo(null)}
                 className="px-6 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition"
               >
-                Cancel
+                إلغاء
               </button>
               <button
                 onClick={confirmDelete}
                 className="px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition shadow-md"
               >
-                Delete
+                حذف المحاضرة
               </button>
             </div>
           </div>
@@ -634,8 +853,9 @@ export default function VideosManager() {
               </button>
             </div>
             <div className="space-y-3 mb-6 text-sm">
-              <p><strong>المنصة:</strong> <span className="font-bold text-primary">{previewVideo.videoType.toUpperCase()}</span></p>
+              <p><strong>المنصة:</strong> <span className="font-bold text-primary">{previewVideo.videoType?.toUpperCase()}</span></p>
               <p><strong>الكورس:</strong> {previewVideo.courseId?.title}</p>
+              <p><strong>القسم:</strong> {previewVideo.sectionId?.title}</p>
               <p><strong>الرابط المحفوظ:</strong></p>
               <div className="bg-gray-100 p-3 rounded-lg font-mono text-xs break-all text-left dir-ltr">
                 {previewVideo.videoUrl || previewVideo.youtubeUrl}
@@ -646,7 +866,7 @@ export default function VideosManager() {
                 href={previewVideo.videoUrl || previewVideo.youtubeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-primary text-white font-bold px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-primary-dark"
+                className="bg-primary text-white font-bold px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-primary-dark transition"
               >
                 <ExternalLink className="w-4 h-4" /> فتح الرابط مباشرة
               </a>
@@ -660,4 +880,3 @@ export default function VideosManager() {
     </div>
   );
 }
-

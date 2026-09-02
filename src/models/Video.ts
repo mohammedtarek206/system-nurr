@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IVideo extends Document {
   courseId: mongoose.Types.ObjectId;
-  sectionId?: mongoose.Types.ObjectId;
+  sectionId: mongoose.Types.ObjectId;
   title: string;
   description?: string;
   videoType: 'zoom' | 'freeconference' | 'youtube';
@@ -20,7 +20,7 @@ export interface IVideo extends Document {
 
 const VideoSchema = new Schema<IVideo>({
   courseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
-  sectionId: { type: Schema.Types.ObjectId, ref: 'Section' },
+  sectionId: { type: Schema.Types.ObjectId, ref: 'Section', required: true },
   title: { type: String, required: true },
   description: { type: String, default: '' },
   videoType: { type: String, enum: ['zoom', 'freeconference', 'youtube'], default: 'zoom' },

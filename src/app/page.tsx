@@ -1,4 +1,3 @@
-import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import CourseSections from "@/components/CourseSections";
 
@@ -7,7 +6,7 @@ export default function Home() {
     <>
       <Hero />
       <CourseSections />
-      
+
       {/* Footer minimal */}
       <footer className="bg-primary-dark py-12 text-center border-t border-white/10">
         <div className="container mx-auto px-4">

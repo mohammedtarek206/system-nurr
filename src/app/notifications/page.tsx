@@ -167,8 +167,6 @@ export default function NotificationsPage() {
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-            <Header />
-
             <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
                 {/* Title & Actions Bar */}
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6 flex flex-wrap items-center justify-between gap-4">

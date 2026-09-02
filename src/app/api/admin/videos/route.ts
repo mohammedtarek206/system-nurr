@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { Video } from '@/models/Video';
+import { Course } from '@/models/Course';
+import { Section } from '@/models/Section';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 
 async function checkAdmin() {
   const token = (await cookies()).get('token')?.value;
@@ -27,8 +30,12 @@ export async function GET(req: Request) {
   const search = searchParams.get('search');
 
   const query: any = {};
-  if (courseId) query.courseId = courseId;
-  if (sectionId) query.sectionId = sectionId;
+  if (courseId && mongoose.Types.ObjectId.isValid(courseId)) {
+    query.courseId = courseId;
+  }
+  if (sectionId && mongoose.Types.ObjectId.isValid(sectionId)) {
+    query.sectionId = sectionId;
+  }
   if (videoType) query.videoType = videoType;
   if (status) query.status = status;
   if (search) {
@@ -53,24 +60,69 @@ export async function POST(req: Request) {
   try {
     const data = await req.json();
 
-    const urlToTest = data.videoUrl || data.youtubeUrl;
-    if (!urlToTest || typeof urlToTest !== 'string' || !urlToTest.trim()) {
-      return NextResponse.json({ message: "يرجى إدخال رابط صحيح للمحاضرة" }, { status: 400 });
+    const { courseId, sectionId, title, description, videoType, videoUrl, youtubeUrl, thumbnail, duration, targetType, targetSpecializations, status, order } = data;
+
+    // 1. Check Course ID presence and validity
+    if (!courseId || typeof courseId !== 'string' || !courseId.trim()) {
+      return NextResponse.json({ success: false, message: "من فضلك اختر الكورس أولاً" }, { status: 400 });
+    }
+    if (!mongoose.Types.ObjectId.isValid(courseId.trim())) {
+      return NextResponse.json({ success: false, message: "معرف الكورس غير صالح (Invalid course ID)" }, { status: 400 });
     }
 
+    // 2. Check Section ID presence and validity
+    if (!sectionId || typeof sectionId !== 'string' || !sectionId.trim() || sectionId === 'null' || sectionId === 'undefined') {
+      return NextResponse.json({ success: false, message: "من فضلك اختر القسم الذي ستضاف إليه المحاضرة" }, { status: 400 });
+    }
+    if (!mongoose.Types.ObjectId.isValid(sectionId.trim())) {
+      return NextResponse.json({ success: false, message: "معرف القسم غير صالح (Invalid section ID)" }, { status: 400 });
+    }
+
+    // 3. Check Title
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return NextResponse.json({ success: false, message: "من فضلك أدخل عنوان المحاضرة" }, { status: 400 });
+    }
+
+    // 4. Validate URL
+    const urlToTest = videoUrl || youtubeUrl;
+    if (!urlToTest || typeof urlToTest !== 'string' || !urlToTest.trim()) {
+      return NextResponse.json({ success: false, message: "يرجى إدخال رابط صحيح للمحاضرة" }, { status: 400 });
+    }
     try {
       new URL(urlToTest);
     } catch {
-      return NextResponse.json({ message: "يرجى إدخال رابط صحيح للمحاضرة" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "يرجى إدخال رابط صحيح للمحاضرة" }, { status: 400 });
+    }
+
+    // 5. Database Existence & Relationship Checks
+    const course = await Course.findById(courseId.trim());
+    if (!course) {
+      return NextResponse.json({ success: false, message: "الكورس المختار غير موجود" }, { status: 400 });
+    }
+
+    const section = await Section.findById(sectionId.trim());
+    if (!section) {
+      return NextResponse.json({ success: false, message: "القسم المختار غير موجود" }, { status: 400 });
+    }
+
+    if (section.courseId.toString() !== courseId.trim()) {
+      return NextResponse.json({ success: false, message: "القسم المختار لا ينتمي إلى الكورس المختار" }, { status: 400 });
     }
 
     const payload = {
-      ...data,
+      courseId: course._id,
+      sectionId: section._id,
+      title: title.trim(),
+      description: description || '',
+      videoType: videoType || 'zoom',
       videoUrl: urlToTest,
       youtubeUrl: urlToTest,
-      videoType: data.videoType || 'zoom',
-      status: data.status || 'published',
-      order: Number(data.order) || 0
+      thumbnail: thumbnail || '',
+      duration: duration || '',
+      targetType: targetType || 'all',
+      targetSpecializations: Array.isArray(targetSpecializations) ? targetSpecializations : [],
+      status: status || 'published',
+      order: Number(order) || 0
     };
 
     const video = await Video.create(payload);
@@ -95,9 +147,17 @@ export async function POST(req: Request) {
       }).catch(err => console.error('Lecture notification error:', err));
     }
 
-    return NextResponse.json({ message: "تم إكمال إضافة المحاضرة بنجاح", video: populated }, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      message: "تم إضافة المحاضرة بنجاح",
+      video: populated
+    }, { status: 201 });
+
   } catch (error: any) {
     console.error("Video creation error:", error);
-    return NextResponse.json({ message: error.message || "حدث خطأ أثناء حفظ الفيديو" }, { status: 500 });
+    if (error.name === 'CastError' || error.message?.includes('Cast to ObjectId failed')) {
+      return NextResponse.json({ success: false, message: "حدث خطأ في بيانات القسم، برجاء اختيار القسم مرة أخرى." }, { status: 400 });
+    }
+    return NextResponse.json({ success: false, message: error.message || "حدث خطأ أثناء حفظ الفيديو" }, { status: 500 });
   }
 }
