@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   try {
     const data = await req.json();
 
-    const { courseId, sectionId, title, description, videoType, videoUrl, youtubeUrl, thumbnail, duration, targetType, targetSpecializations, status, order } = data;
+    const { courseId, sectionId, title, description, videoType, videoUrl, youtubeUrl, thumbnail, duration, targetType, targetSpecializations, status, order, startDate, startTime, endDate, endTime } = data;
 
     // 1. Check Course ID presence and validity
     if (!courseId || typeof courseId !== 'string' || !courseId.trim()) {
@@ -122,7 +122,11 @@ export async function POST(req: Request) {
       targetType: targetType || 'all',
       targetSpecializations: Array.isArray(targetSpecializations) ? targetSpecializations : [],
       status: status || 'published',
-      order: Number(order) || 0
+      order: Number(order) || 0,
+      startDate: startDate || '',
+      startTime: startTime || '',
+      endDate: endDate || '',
+      endTime: endTime || ''
     };
 
     const video = await Video.create(payload);

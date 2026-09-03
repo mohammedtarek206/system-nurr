@@ -97,7 +97,10 @@ export async function sendNotificationToTargetAudience(options: SendToAudienceOp
         if (targetStudents && targetStudents.length > 0) {
             userQuery._id = { $in: targetStudents };
         } else if (targetType === 'specific' && targetSpecializations && targetSpecializations.length > 0) {
-            userQuery.specialization = { $in: targetSpecializations };
+            userQuery.$or = [
+                { specializationId: { $in: targetSpecializations } },
+                { specialization: { $in: targetSpecializations } }
+            ];
         }
 
         // If courseId is provided, optionally check active course subscriptions if needed

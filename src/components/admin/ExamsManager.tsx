@@ -36,6 +36,10 @@ export default function ExamsManager() {
     category: "",
     duration: 60,
     passingScore: 50,
+    startDate: "",
+    startTime: "",
+    endDate: "",
+    endTime: "",
     allowRetake: true,
     maxAttempts: 0,
     randomizeQuestions: false,
@@ -76,7 +80,7 @@ export default function ExamsManager() {
     if (res.ok) {
       setShowForm(false);
       fetchData();
-      setFormData({ title: "", category: categories[0]?.name || "", duration: 60, passingScore: 50, allowRetake: true, maxAttempts: 0, randomizeQuestions: false, randomizeAnswers: false, targetType: 'all', targetSpecializations: [] });
+      setFormData({ title: "", category: categories[0]?.name || "", duration: 60, passingScore: 50, startDate: "", startTime: "", endDate: "", endTime: "", allowRetake: true, maxAttempts: 0, randomizeQuestions: false, randomizeAnswers: false, targetType: 'all', targetSpecializations: [] });
     }
   };
 
@@ -190,6 +194,24 @@ export default function ExamsManager() {
             <div>
               <label className="block text-sm font-semibold mb-2">نسبة النجاح (%)</label>
               <input required type="number" min="1" max="100" value={formData.passingScore} onChange={e => setFormData({ ...formData, passingScore: Number(e.target.value) })} className="w-full px-4 py-2 rounded-lg border border-gray-300 outline-none focus:border-primary" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1">تاريخ بداية الصلاحية (Start Date)</label>
+              <input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} className="w-full px-4 py-2 rounded-lg border border-gray-300 outline-none focus:border-primary bg-white" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1">وقت البداية (Start Time)</label>
+              <input type="time" value={formData.startTime} onChange={e => setFormData({ ...formData, startTime: e.target.value })} className="w-full px-4 py-2 rounded-lg border border-gray-300 outline-none focus:border-primary bg-white" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1">تاريخ نهاية الصلاحية (End Date)</label>
+              <input type="date" value={formData.endDate} onChange={e => setFormData({ ...formData, endDate: e.target.value })} className="w-full px-4 py-2 rounded-lg border border-gray-300 outline-none focus:border-primary bg-white" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1">وقت النهاية (End Time)</label>
+              <input type="time" value={formData.endTime} onChange={e => setFormData({ ...formData, endTime: e.target.value })} className="w-full px-4 py-2 rounded-lg border border-gray-300 outline-none focus:border-primary bg-white" />
             </div>
 
             <div className="md:col-span-2 grid grid-cols-2 gap-4">

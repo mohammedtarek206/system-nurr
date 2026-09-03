@@ -47,7 +47,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   try {
     const data = await req.json();
-    const { courseId, sectionId, title, description, videoType, videoUrl, youtubeUrl, thumbnail, duration, targetType, targetSpecializations, status, order } = data;
+    const { courseId, sectionId, title, description, videoType, videoUrl, youtubeUrl, thumbnail, duration, targetType, targetSpecializations, status, order, startDate, startTime, endDate, endTime } = data;
 
     const payload: any = {};
 
@@ -114,6 +114,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (targetSpecializations !== undefined) payload.targetSpecializations = targetSpecializations;
     if (status !== undefined) payload.status = status;
     if (order !== undefined) payload.order = Number(order) || 0;
+    if (startDate !== undefined) payload.startDate = startDate;
+    if (startTime !== undefined) payload.startTime = startTime;
+    if (endDate !== undefined) payload.endDate = endDate;
+    if (endTime !== undefined) payload.endTime = endTime;
 
     const video = await Video.findByIdAndUpdate(id, payload, { new: true })
       .populate('courseId', 'title category')

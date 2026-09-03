@@ -46,6 +46,10 @@ export default function VideosManager() {
     duration: "",
     courseId: "",
     sectionId: "",
+    startDate: "",
+    startTime: "",
+    endDate: "",
+    endTime: "",
     targetType: "all" as "all" | "specific",
     targetSpecializations: [] as string[],
     status: "published" as "published" | "draft" | "archived",
@@ -270,6 +274,10 @@ export default function VideosManager() {
       duration: video.duration || "",
       courseId: cId,
       sectionId: secId,
+      startDate: video.startDate || "",
+      startTime: video.startTime || "",
+      endDate: video.endDate || "",
+      endTime: video.endTime || "",
       targetType: video.targetType || "all",
       targetSpecializations: (video.targetSpecializations || []).map((s: any) => s._id || s),
       status: video.status || "published",
@@ -535,6 +543,45 @@ export default function VideosManager() {
               />
             </div>
 
+            {/* Scheduling Date & Time */}
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-gray-700">تاريخ بداية العرض (Start Date)</label>
+              <input
+                type="date"
+                value={formData.startDate}
+                onChange={e => setFormData({ ...formData, startDate: e.target.value })}
+                className="w-full px-4 py-2 rounded-xl border border-gray-300 outline-none focus:border-primary bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-gray-700">وقت البداية (Start Time)</label>
+              <input
+                type="time"
+                value={formData.startTime}
+                onChange={e => setFormData({ ...formData, startTime: e.target.value })}
+                className="w-full px-4 py-2 rounded-xl border border-gray-300 outline-none focus:border-primary bg-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-gray-700">تاريخ نهاية العرض (End Date)</label>
+              <input
+                type="date"
+                value={formData.endDate}
+                onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                className="w-full px-4 py-2 rounded-xl border border-gray-300 outline-none focus:border-primary bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-gray-700">وقت النهاية (End Time)</label>
+              <input
+                type="time"
+                value={formData.endTime}
+                onChange={e => setFormData({ ...formData, endTime: e.target.value })}
+                className="w-full px-4 py-2 rounded-xl border border-gray-300 outline-none focus:border-primary bg-white"
+              />
+            </div>
+
             {/* Status & Order */}
             <div>
               <label className="block text-sm font-semibold mb-2 text-gray-700">الحالة (Status)</label>
@@ -694,8 +741,8 @@ export default function VideosManager() {
                   </td>
                   <td className="p-3">
                     <span className={`px-2.5 py-1 rounded-full font-bold text-xs ${video.videoType === 'zoom' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                        video.videoType === 'freeconference' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
-                          'bg-red-50 text-red-700 border border-red-200'
+                      video.videoType === 'freeconference' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                        'bg-red-50 text-red-700 border border-red-200'
                       }`}>
                       {video.videoType === 'zoom' ? 'Zoom' : video.videoType === 'freeconference' ? 'Free Conference' : 'YouTube'}
                     </span>
@@ -717,8 +764,8 @@ export default function VideosManager() {
                     <button
                       onClick={() => handleToggleStatus(video)}
                       className={`px-2.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1 ${video.status === 'published' ? 'bg-green-100 text-green-700 hover:bg-green-200' :
-                          video.status === 'draft' ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' :
-                            'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        video.status === 'draft' ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' :
+                          'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                     >
                       {video.status === 'published' ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}

@@ -29,10 +29,15 @@ export default function Header() {
             </Link>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-6 lg:gap-8">
             <Link href="/" className="text-primary-dark font-semibold hover:text-gold transition-colors">الرئيسية</Link>
             <Link href="/courses" className="text-primary-dark font-semibold hover:text-gold transition-colors">الكورسات</Link>
             <Link href="/exams" className="text-primary-dark font-semibold hover:text-gold transition-colors">الامتحانات</Link>
+            <Link href="/night-exam" className="text-primary-dark font-semibold hover:text-gold transition-colors flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              ليلة الامتحان
+            </Link>
+            <Link href="/nclex" className="text-primary-dark font-semibold hover:text-gold transition-colors">NCLEX</Link>
             <Link href="/summaries" className="text-primary-dark font-semibold hover:text-gold transition-colors">الملخصات</Link>
             <a
               href="https://web.whatsapp.com/send?phone=201016223940&text=%D8%AA%D9%88%D8%A7%D8%B5%D9%84%20%D9%85%D8%B9%D9%86%D8%A7"
@@ -85,6 +90,8 @@ export default function Header() {
             <Link href="/" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الرئيسية</Link>
             <Link href="/courses" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الكورسات</Link>
             <Link href="/exams" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الامتحانات</Link>
+            <Link href="/night-exam" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">🌙 ليلة الامتحان</Link>
+            <Link href="/nclex" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">🩺 NCLEX</Link>
             <Link href="/summaries" onClick={() => setIsOpen(false)} className="block px-3 py-2 text-primary-dark font-semibold hover:bg-light">الملخصات</Link>
             <a
               href="https://web.whatsapp.com/send?phone=201016223940"

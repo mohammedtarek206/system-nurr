@@ -17,6 +17,10 @@ export interface ICourse extends Document {
   targetSpecializations: mongoose.Types.ObjectId[];
   targetType: 'all' | 'specific';
   progressionEnabled?: boolean;
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
   createdAt: Date;
 }
 
@@ -37,6 +41,11 @@ const CourseSchema = new Schema<ICourse>({
   targetSpecializations: [{ type: Schema.Types.ObjectId, ref: 'Specialization' }],
   targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
   progressionEnabled: { type: Boolean, default: false },
+  startDate: { type: String, default: '' },
+  startTime: { type: String, default: '' },
+  endDate: { type: String, default: '' },
+  endTime: { type: String, default: '' },
 }, { timestamps: true });
 
 export const Course = mongoose.models.Course || mongoose.model<ICourse>('Course', CourseSchema);
+

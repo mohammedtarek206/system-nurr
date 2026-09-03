@@ -14,6 +14,10 @@ export interface IVideo extends Document {
   targetType?: 'all' | 'specific';
   status?: 'published' | 'draft' | 'archived';
   order?: number;
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +35,12 @@ const VideoSchema = new Schema<IVideo>({
   targetSpecializations: [{ type: Schema.Types.ObjectId, ref: 'Specialization' }],
   targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
   status: { type: String, enum: ['published', 'draft', 'archived'], default: 'published' },
-  order: { type: Number, default: 0 }
+  order: { type: Number, default: 0 },
+  startDate: { type: String, default: '' },
+  startTime: { type: String, default: '' },
+  endDate: { type: String, default: '' },
+  endTime: { type: String, default: '' }
 }, { timestamps: true });
 
 export const Video = mongoose.models.Video || mongoose.model<IVideo>('Video', VideoSchema);
+

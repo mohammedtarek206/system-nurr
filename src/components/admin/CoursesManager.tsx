@@ -25,6 +25,7 @@ export default function CoursesManager() {
     title: "", description: "", shortDescription: "", image: "",
     price: 0, isFree: false, duration: "", instructor: "",
     status: "active", order: 0, category: "",
+    startDate: "", startTime: "", endDate: "", endTime: "",
     целевая_аудитория: [], progressionEnabled: false, targetType: "all", targetSpecializations: [] as string[]
   });
 
@@ -75,14 +76,14 @@ export default function CoursesManager() {
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(formData) });
     if (res.ok) {
       setShowForm(false); setEditCourse(null);
-      setFormData({ title: "", description: "", shortDescription: "", image: "", price: 0, isFree: false, duration: "", instructor: "", status: "active", order: 0, category: categories[0]?.name || "", целевая_аудитория: [], progressionEnabled: false, targetType: 'all', targetSpecializations: [] });
+      setFormData({ title: "", description: "", shortDescription: "", image: "", price: 0, isFree: false, duration: "", instructor: "", status: "active", order: 0, category: categories[0]?.name || "", startDate: "", startTime: "", endDate: "", endTime: "", целевая_аудитория: [], progressionEnabled: false, targetType: 'all', targetSpecializations: [] });
       fetchData();
     }
   };
 
   const handleEdit = (course: any) => {
     setEditCourse(course);
-    setFormData({ title: course.title, description: course.description, shortDescription: course.shortDescription || "", image: course.image || "", price: course.price || 0, isFree: course.isFree || false, duration: course.duration || "", instructor: course.instructor || "", status: course.status || "active", order: course.order || 0, category: course.category || "", targetType: course.targetType || "all", targetSpecializations: course.targetSpecializations || [], целевая_аудитория: [], progressionEnabled: course.progressionEnabled || false });
+    setFormData({ title: course.title, description: course.description, shortDescription: course.shortDescription || "", image: course.image || "", price: course.price || 0, isFree: course.isFree || false, duration: course.duration || "", instructor: course.instructor || "", status: course.status || "active", order: course.order || 0, category: course.category || "", startDate: course.startDate || "", startTime: course.startTime || "", endDate: course.endDate || "", endTime: course.endTime || "", targetType: course.targetType || "all", targetSpecializations: course.targetSpecializations || [], целевая_аудитория: [], progressionEnabled: course.progressionEnabled || false });
     setShowForm(true);
   };
 
@@ -138,7 +139,7 @@ export default function CoursesManager() {
         <h2 className="text-xl font-bold text-[#061B3D] flex items-center gap-2">
           <BookOpen className="w-6 h-6 text-[#1E3A8A]" /> إدارة الكورسات
         </h2>
-        <button onClick={() => { setShowForm(!showForm); setEditCourse(null); setFormData({ title: "", description: "", shortDescription: "", image: "", price: 0, isFree: false, duration: "", instructor: "", status: "active", order: 0, category: categories[0]?.name || "", целевая_аудитория: [], progressionEnabled: false, targetType: 'all', targetSpecializations: [] }); }}
+        <button onClick={() => { setShowForm(!showForm); setEditCourse(null); setFormData({ title: "", description: "", shortDescription: "", image: "", price: 0, isFree: false, duration: "", instructor: "", status: "active", order: 0, category: categories[0]?.name || "", startDate: "", startTime: "", endDate: "", endTime: "", целевая_аудитория: [], progressionEnabled: false, targetType: 'all', targetSpecializations: [] }); }}
           className="bg-[#1E3A8A] text-white font-bold px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-[#061B3D] transition">
           {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           {showForm ? "إلغاء" : "إضافة كورس"}
@@ -186,6 +187,22 @@ export default function CoursesManager() {
               <option value="hidden">مخفي 🙈</option>
               <option value="draft">مسودة 📝</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">تاريخ بداية النشر/الصلاحية</label>
+            <input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-[#1E3A8A] bg-white" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">وقت البداية</label>
+            <input type="time" value={formData.startTime} onChange={e => setFormData({ ...formData, startTime: e.target.value })} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-[#1E3A8A] bg-white" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">تاريخ انتهاء النشر/الصلاحية</label>
+            <input type="date" value={formData.endDate} onChange={e => setFormData({ ...formData, endDate: e.target.value })} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-[#1E3A8A] bg-white" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">وقت النهاية</label>
+            <input type="time" value={formData.endTime} onChange={e => setFormData({ ...formData, endTime: e.target.value })} className="w-full px-4 py-2 rounded-lg border outline-none focus:border-[#1E3A8A] bg-white" />
           </div>
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 cursor-pointer">

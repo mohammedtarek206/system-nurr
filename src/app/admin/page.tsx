@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, BookOpen, FileText, Settings, LayoutDashboard, Video, User, Award, Layers, MessageCircle, BookMarked, GraduationCap } from "lucide-react";
+import { Users, BookOpen, FileText, Settings, LayoutDashboard, Video, User, Award, Layers, MessageCircle, BookMarked, GraduationCap, Key, ClipboardList } from "lucide-react";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 import { redirect } from "next/navigation";
@@ -13,6 +13,8 @@ import SubscriptionRequestsManager from "@/components/admin/SubscriptionRequests
 import SummariesManager from "@/components/admin/SummariesManager";
 import SpecializationsManager from "@/components/admin/SpecializationsManager";
 import NotificationsManager from "@/components/admin/NotificationsManager";
+import AccessCodesManager from "@/components/admin/AccessCodesManager";
+import ExamBookingsManager from "@/components/admin/ExamBookingsManager";
 import connectDB from "@/lib/db";
 import { User as UserModel } from "@/models/User";
 import { Course as CourseModel } from "@/models/Course";
@@ -51,6 +53,8 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
     { id: "subscription-requests", name: "طلبات الاشتراك", icon: MessageCircle, badge: pendingRequests > 0 ? pendingRequests : null },
     { id: "videos", name: "إدارة الفيديوهات", icon: Video },
     { id: "exams", name: "إدارة الامتحانات", icon: FileText },
+    { id: "access-codes", name: "أكواد الوصول", icon: Key },
+    { id: "exam-bookings", name: "إدارة الحجوزات", icon: ClipboardList },
     { id: "results", name: "نتائج الطلاب", icon: Award },
     { id: "summaries", name: "الملخصات", icon: BookMarked },
     { id: "specializations", name: "إدارة التخصصات", icon: GraduationCap },
@@ -154,6 +158,8 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
         {currentTab === 'students' && <StudentsManager />}
         {currentTab === 'courses' && <CoursesManager />}
         {currentTab === 'videos' && <VideosManager />}
+        {currentTab === 'access-codes' && <AccessCodesManager />}
+        {currentTab === 'exam-bookings' && <ExamBookingsManager />}
         {currentTab === 'results' && <ResultsManager />}
         {currentTab === 'subscription-requests' && <SubscriptionRequestsManager />}
         {currentTab === 'summaries' && <SummariesManager />}
