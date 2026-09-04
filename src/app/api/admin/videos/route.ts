@@ -18,6 +18,25 @@ async function checkAdmin() {
   }
 }
 
+// Helper to normalize video item output
+export function normalizeVideoItem(v: any) {
+  const obj = v.toObject ? v.toObject() : { ...v };
+  let rawPlatform = (obj.platform || obj.videoType || 'ZOOM').toString().trim().toUpperCase();
+  if (rawPlatform === 'ZOOM') rawPlatform = 'ZOOM';
+  else if (rawPlatform === 'FREECONFERENCE' || rawPlatform === 'FREE_CONFERENCE' || rawPlatform === 'FREE CONFERENCE') rawPlatform = 'FREE_CONFERENCE';
+  else rawPlatform = 'VIDEO';
+
+  const cleanUrl = (obj.url || obj.videoUrl || obj.youtubeUrl || '').toString().trim();
+
+  return {
+    ...obj,
+    platform: rawPlatform,
+    videoType: rawPlatform.toLowerCase(),
+    url: cleanUrl,
+    videoUrl: cleanUrl
+  };
+}
+
 export async function GET(req: Request) {
   if (!(await checkAdmin())) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   await connectDB();
@@ -25,7 +44,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const courseId = searchParams.get('courseId');
   const sectionId = searchParams.get('sectionId');
-  const videoType = searchParams.get('videoType');
+  const platform = searchParams.get('platform') || searchParams.get('videoType');
   const status = searchParams.get('status');
   const search = searchParams.get('search');
 
@@ -36,7 +55,6 @@ export async function GET(req: Request) {
   if (sectionId && mongoose.Types.ObjectId.isValid(sectionId)) {
     query.sectionId = sectionId;
   }
-  if (videoType) query.videoType = videoType;
   if (status) query.status = status;
   if (search) {
     query.$or = [
@@ -45,11 +63,20 @@ export async function GET(req: Request) {
     ];
   }
 
-  const videos = await Video.find(query)
+  const rawVideos = await Video.find(query)
     .populate('courseId', 'title category')
     .populate('sectionId', 'title')
     .populate('targetSpecializations', 'arName name')
+    .populate('examId', 'title passingPercentage duration')
+    .populate('prerequisiteExamId', 'title passingPercentage')
     .sort({ order: 1, createdAt: -1 });
+
+  let videos = rawVideos.map(normalizeVideoItem);
+
+  if (platform) {
+    const cleanPlatform = platform.toUpperCase();
+    videos = videos.filter(v => v.platform === cleanPlatform || v.videoType === platform.toLowerCase());
+  }
 
   return NextResponse.json(videos);
 }
@@ -60,9 +87,33 @@ export async function POST(req: Request) {
   try {
     const data = await req.json();
 
-    const { courseId, sectionId, title, description, videoType, videoUrl, youtubeUrl, thumbnail, duration, targetType, targetSpecializations, status, order, startDate, startTime, endDate, endTime } = data;
+    const {
+      courseId,
+      sectionId,
+      title,
+      description,
+      platform,
+      videoType,
+      url,
+      videoUrl,
+      youtubeUrl,
+      thumbnail,
+      duration,
+      targetType,
+      targetSpecializations,
+      status,
+      order,
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      examId,
+      prerequisiteExamId,
+      prerequisiteType,
+      passingPercentage
+    } = data;
 
-    // 1. Check Course ID presence and validity
+    // 1. Check Course ID
     if (!courseId || typeof courseId !== 'string' || !courseId.trim()) {
       return NextResponse.json({ success: false, message: "من فضلك اختر الكورس أولاً" }, { status: 400 });
     }
@@ -70,7 +121,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "معرف الكورس غير صالح (Invalid course ID)" }, { status: 400 });
     }
 
-    // 2. Check Section ID presence and validity
+    // 2. Check Section ID
     if (!sectionId || typeof sectionId !== 'string' || !sectionId.trim() || sectionId === 'null' || sectionId === 'undefined') {
       return NextResponse.json({ success: false, message: "من فضلك اختر القسم الذي ستضاف إليه المحاضرة" }, { status: 400 });
     }
@@ -83,18 +134,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "من فضلك أدخل عنوان المحاضرة" }, { status: 400 });
     }
 
-    // 4. Validate URL
-    const urlToTest = videoUrl || youtubeUrl;
-    if (!urlToTest || typeof urlToTest !== 'string' || !urlToTest.trim()) {
-      return NextResponse.json({ success: false, message: "يرجى إدخال رابط صحيح للمحاضرة" }, { status: 400 });
-    }
-    try {
-      new URL(urlToTest);
-    } catch {
+    // 4. Validate Platform
+    let selectedPlatform: 'ZOOM' | 'FREE_CONFERENCE' | 'VIDEO' = 'ZOOM';
+    const rawPlat = (platform || videoType || 'ZOOM').toString().trim().toUpperCase();
+    if (rawPlat === 'ZOOM') selectedPlatform = 'ZOOM';
+    else if (rawPlat === 'FREE_CONFERENCE' || rawPlat === 'FREECONFERENCE' || rawPlat === 'FREE CONFERENCE') selectedPlatform = 'FREE_CONFERENCE';
+    else selectedPlatform = 'VIDEO';
+
+    // 5. Validate URL
+    const rawUrl = (url || videoUrl || youtubeUrl || '').toString().trim();
+    if (!rawUrl) {
       return NextResponse.json({ success: false, message: "يرجى إدخال رابط صحيح للمحاضرة" }, { status: 400 });
     }
 
-    // 5. Database Existence & Relationship Checks
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(rawUrl);
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return NextResponse.json({ success: false, message: "يجب أن يبدأ رابط المحاضرة بـ http:// أو https://" }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ success: false, message: "رابط المحاضرة غير صحيح (URL غير صالح)" }, { status: 400 });
+    }
+
+    const cleanUrlStr = parsedUrl.toString();
+
+    // 6. Database Existence & Relationship Checks
     const course = await Course.findById(courseId.trim());
     if (!course) {
       return NextResponse.json({ success: false, message: "الكورس المختار غير موجود" }, { status: 400 });
@@ -109,16 +174,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "القسم المختار لا ينتمي إلى الكورس المختار" }, { status: 400 });
     }
 
-    const payload = {
+    const payload: any = {
       courseId: course._id,
       sectionId: section._id,
       title: title.trim(),
-      description: description || '',
-      videoType: videoType || 'zoom',
-      videoUrl: urlToTest,
-      youtubeUrl: urlToTest,
-      thumbnail: thumbnail || '',
-      duration: duration || '',
+      description: description ? description.trim() : '',
+      platform: selectedPlatform,
+      videoType: selectedPlatform.toLowerCase(),
+      url: cleanUrlStr,
+      videoUrl: cleanUrlStr,
+      youtubeUrl: cleanUrlStr,
+      thumbnail: thumbnail ? thumbnail.trim() : '',
+      duration: duration ? duration.trim() : '',
       targetType: targetType || 'all',
       targetSpecializations: Array.isArray(targetSpecializations) ? targetSpecializations : [],
       status: status || 'published',
@@ -126,14 +193,23 @@ export async function POST(req: Request) {
       startDate: startDate || '',
       startTime: startTime || '',
       endDate: endDate || '',
-      endTime: endTime || ''
+      endTime: endTime || '',
+      prerequisiteType: prerequisiteType || 'NONE',
+      passingPercentage: Number(passingPercentage) || 80
     };
+
+    if (examId && mongoose.Types.ObjectId.isValid(examId)) payload.examId = examId;
+    if (prerequisiteExamId && mongoose.Types.ObjectId.isValid(prerequisiteExamId)) payload.prerequisiteExamId = prerequisiteExamId;
 
     const video = await Video.create(payload);
     const populated = await Video.findById(video._id)
       .populate('courseId', 'title category')
       .populate('sectionId', 'title')
-      .populate('targetSpecializations', 'arName name');
+      .populate('targetSpecializations', 'arName name')
+      .populate('examId', 'title passingPercentage duration')
+      .populate('prerequisiteExamId', 'title passingPercentage');
+
+    const normalizedResult = normalizeVideoItem(populated);
 
     if (video.status === 'published') {
       const courseTitle = (populated?.courseId as any)?.title || 'الكورس';
@@ -142,7 +218,7 @@ export async function POST(req: Request) {
         type: 'NEW_LECTURE',
         title: 'محاضرة جديدة متاحة',
         message: `تم إضافة محاضرة جديدة "${video.title}" إلى كورس ${courseTitle}`,
-        link: `/courses/${video.courseId}?lectureId=${video._id}`,
+        link: `/lectures/${video._id}`,
         contentId: `video_${video._id}`,
         contentType: 'video',
         targetType: (video.targetSpecializations && video.targetSpecializations.length > 0) ? 'specific' : 'all',
@@ -154,7 +230,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: "تم إضافة المحاضرة بنجاح",
-      video: populated
+      video: normalizedResult
     }, { status: 201 });
 
   } catch (error: any) {
@@ -162,6 +238,6 @@ export async function POST(req: Request) {
     if (error.name === 'CastError' || error.message?.includes('Cast to ObjectId failed')) {
       return NextResponse.json({ success: false, message: "حدث خطأ في بيانات القسم، برجاء اختيار القسم مرة أخرى." }, { status: 400 });
     }
-    return NextResponse.json({ success: false, message: error.message || "حدث خطأ أثناء حفظ الفيديو" }, { status: 500 });
+    return NextResponse.json({ success: false, message: error.message || "حدث خطأ أثناء حفظ المحاضرة" }, { status: 500 });
   }
 }

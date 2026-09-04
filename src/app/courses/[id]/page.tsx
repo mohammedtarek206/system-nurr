@@ -1,16 +1,12 @@
 import connectDB from "@/lib/db";
 import { Course } from "@/models/Course";
-import { Section } from "@/models/Section";
-import { Lesson } from "@/models/Lesson";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, Clock, Users, Video, ChevronRight, ExternalLink, FileText } from "lucide-react";
-import SubscribeModal from "@/components/SubscribeModal";
+import { BookOpen, Clock, Users, Video as VideoIcon, ChevronRight, ExternalLink, Lock, CheckCircle, RefreshCw, XCircle, Award } from "lucide-react";
 import CourseDetailClient from "@/components/CourseDetailClient";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
-import { Result } from "@/models/Result";
-import { Lock } from "lucide-react";
+import { checkCourseSubscriptionAccess, getCourseProgressionState } from "@/lib/progressionEngine";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   await connectDB();
@@ -40,41 +36,43 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
     try { user = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret'); } catch (e) { }
   }
 
-  if (course.targetType === 'specific') {
-    if (!user) notFound(); // Should be logged in to view restricted
-    if (user.role !== 'admin' && !course.targetSpecializations?.some((sId: any) => sId.toString() === user.specializationId)) {
-      notFound();
-    }
+  // REQUIREMENT 1: Guest Protection -> Redirect to Login
+  if (!user) {
+    redirect(`/login?redirect=/courses/${id}&msg=login_required`);
   }
 
-  // Filter sections and lessons by targetSpecializations
-  let sections = await Section.find({ courseId: id }).sort({ order: 1 });
-  let lessons = await Lesson.find({ courseId: id }).sort({ order: 1 });
-
-  sections = sections.filter(sec => {
-    if (sec.targetType !== 'specific') return true;
-    if (user && user.role === 'admin') return true;
-    if (user && sec.targetSpecializations?.some((sId: any) => sId.toString() === user.specializationId)) return true;
-    return false;
-  });
-
-  lessons = lessons.filter(les => {
-    if (les.targetType !== 'specific') return true;
-    if (user && user.role === 'admin') return true;
-    if (user && les.targetSpecializations?.some((sId: any) => sId.toString() === user.specializationId)) return true;
-    return false;
-  });
-
-  // Calculate progression state
-  let passedExams = new Set<string>();
-  if (user && course.progressionEnabled) {
-    const results = await Result.find({ userId: user.id });
-    for (const r of results) {
-      if (r.percentage >= (r.examId?.passingScore || 50)) { // Or we can rely on Result.status if added earlier
-        passedExams.add(r.examId.toString());
-      }
-    }
+  // REQUIREMENT 3 & 30: Check Subscription & Specialization Access
+  const accessCheck = await checkCourseSubscriptionAccess(user, course);
+  if (!accessCheck.accessible) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4" dir="rtl">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-gray-100 shadow-xl text-center">
+          <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-black text-[#061B3D] mb-2">وصول محمي</h2>
+          <p className="text-gray-600 text-sm mb-6 leading-relaxed">{accessCheck.reason || "يلزم الاشتراك الكورس أولاً للوصول إلى هذا المحتوى."}</p>
+          <div className="space-y-3">
+            <CourseDetailClient courseId={course._id.toString()} courseName={course.title} />
+            <Link href="/courses" className="block w-full py-3 bg-gray-100 text-gray-700 font-bold rounded-2xl hover:bg-gray-200 transition text-sm">
+              العودة لكافة الكورسات
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
+
+  // REQUIREMENT 10, 23 & 41: Fetch student progression state
+  const progressionState = await getCourseProgressionState(user.id, id);
+  const progCourse = progressionState?.course || {
+    progressPercentage: 0,
+    completedLessonsCount: 0,
+    totalLessonsCount: 0,
+    progressionMode: course.progressionMode || 'FREE'
+  };
+  const sections = progressionState?.sections || [];
+  const lessons = progressionState?.lessons || [];
 
   // Group lessons by section
   const lessonsBySection: Record<string, typeof lessons> = {};
@@ -84,11 +82,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
     lessonsBySection[sid].push(lesson);
   }
 
-  const totalLessons = lessons.filter(l => l.zoomLink).length;
-
   return (
     <div className="min-h-screen bg-[#F8FAFC]" dir="rtl">
-      {/* Hero */}
+      {/* Hero Header */}
       <div className="bg-[#061B3D] relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-[#061B3D] to-[#0d2a5c]"></div>
         <div className="absolute top-0 right-0 w-96 h-96 bg-[#D4AF37]/5 rounded-full blur-3xl"></div>
@@ -101,17 +97,41 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
 
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
-              {course.isFree ? (
-                <span className="inline-block bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full mb-4">مجاني</span>
-              ) : (
-                <span className="inline-block bg-[#D4AF37] text-[#061B3D] text-xs font-bold px-3 py-1 rounded-full mb-4">مدفوع</span>
-              )}
+              <div className="flex items-center gap-3 mb-4">
+                {course.isFree ? (
+                  <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">مجاني</span>
+                ) : (
+                  <span className="bg-[#D4AF37] text-[#061B3D] text-xs font-bold px-3 py-1 rounded-full">مشترك</span>
+                )}
+                <span className="bg-white/10 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  نظام التتابع: {progCourse.progressionMode === 'EXAM_REQUIRED' ? 'امتحان إجباري لكل محاضرة' : progCourse.progressionMode === 'SEQUENTIAL' ? 'متسلسل' : 'حُر'}
+                </span>
+              </div>
+
               <h1 className="text-3xl md:text-4xl font-black text-white mb-4 leading-snug">{course.title}</h1>
               {course.shortDescription && (
                 <p className="text-gray-300 text-lg mb-6 leading-relaxed">{course.shortDescription}</p>
               )}
 
-              <div className="flex flex-wrap gap-4 text-sm mb-8">
+              {/* REQUIREMENT 23: Progression Header Bar */}
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 mb-8">
+                <div className="flex items-center justify-between text-sm font-bold text-white mb-2">
+                  <span>نسبة إنجاز الكورس</span>
+                  <span className="text-[#D4AF37]">{progCourse.progressPercentage}%</span>
+                </div>
+                <div className="w-full bg-white/20 h-3 rounded-full overflow-hidden mb-3">
+                  <div
+                    className="bg-gradient-to-r from-[#D4AF37] to-amber-300 h-full transition-all duration-500 rounded-full"
+                    style={{ width: `${progCourse.progressPercentage}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between items-center text-xs text-gray-300">
+                  <span>المحاضرات مكتملة: {progCourse.completedLessonsCount} من {progCourse.totalLessonsCount}</span>
+                  <span>الأقسام: {sections.length}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-4 text-sm mb-6">
                 {sections.length > 0 && (
                   <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl">
                     <Users className="w-4 h-4 text-[#D4AF37]" />
@@ -120,8 +140,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
                 )}
                 {lessons.length > 0 && (
                   <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl">
-                    <Video className="w-4 h-4 text-[#D4AF37]" />
-                    <span className="text-white font-semibold">{totalLessons} محاضرة</span>
+                    <VideoIcon className="w-4 h-4 text-[#D4AF37]" />
+                    <span className="text-white font-semibold">{lessons.length} محاضرة</span>
                   </div>
                 )}
                 {course.duration && (
@@ -130,15 +150,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
                     <span className="text-white font-semibold">{course.duration}</span>
                   </div>
                 )}
-                {course.instructor && (
-                  <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl">
-                    <BookOpen className="w-4 h-4 text-[#D4AF37]" />
-                    <span className="text-white font-semibold">{course.instructor}</span>
-                  </div>
-                )}
               </div>
-
-              <CourseDetailClient courseId={course._id.toString()} courseName={course.title} />
             </div>
 
             {/* Course Image */}
@@ -152,11 +164,6 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
                   </div>
                 )}
               </div>
-              {!course.isFree && course.price > 0 && (
-                <div className="absolute -bottom-4 -left-4 bg-[#D4AF37] text-[#061B3D] font-black text-2xl px-6 py-3 rounded-2xl shadow-lg">
-                  {course.price} جنيه
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -174,99 +181,132 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
           </div>
         )}
 
-        {/* Sections & Lessons */}
+        {/* Sections & Progression Timeline */}
         {sections.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
             <h2 className="text-2xl font-bold text-[#061B3D] mb-6 flex items-center gap-2">
               <Users className="w-6 h-6 text-[#D4AF37]" />
-              محتوى الكورس
+              شجرة تقدم المحاضرات والأقسام (Course Progression Timeline)
             </h2>
-            <div className="space-y-4">
-              {sections.map((section, idx) => {
+
+            <div className="space-y-6">
+              {sections.map((section: any, idx: number) => {
                 const sectionLessons = lessonsBySection[section._id.toString()] || [];
-                const activeLessons = sectionLessons.filter(l => l.zoomLink);
+                const isSecLocked = section.status === 'LOCKED';
+
                 return (
-                  <div key={section._id.toString()} className="border border-gray-100 rounded-xl overflow-hidden">
-                    <div className="bg-[#061B3D]/5 px-6 py-4 flex items-center justify-between">
+                  <div key={section._id.toString()} className={`border rounded-2xl overflow-hidden transition-all ${isSecLocked ? 'border-gray-200 opacity-85 bg-gray-50/50' : 'border-gray-200 bg-white shadow-sm'}`}>
+                    {/* Section Header */}
+                    <div className={`px-6 py-4 flex items-center justify-between ${isSecLocked ? 'bg-gray-100 text-gray-500' : 'bg-[#061B3D]/5 text-[#061B3D]'}`}>
                       <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-full bg-[#D4AF37]/20 text-[#061B3D] font-black text-sm flex items-center justify-center">
-                          {idx + 1}
+                        <span className={`w-8 h-8 rounded-full font-black text-sm flex items-center justify-center ${section.status === 'COMPLETED' ? 'bg-green-500 text-white' : isSecLocked ? 'bg-gray-300 text-gray-600' : 'bg-[#D4AF37]/20 text-[#061B3D]'}`}>
+                          {section.status === 'COMPLETED' ? <CheckCircle className="w-5 h-5" /> : idx + 1}
                         </span>
-                        <h3 className="font-bold text-[#061B3D]">{section.title}</h3>
+                        <div>
+                          <h3 className="font-bold text-[#061B3D] text-lg">{section.title}</h3>
+                          {section.description && <p className="text-xs text-gray-500 mt-0.5">{section.description}</p>}
+                        </div>
                       </div>
+
                       <div className="flex items-center gap-2">
-                        {course.progressionEnabled && section.requiredExam && !passedExams.has(section.requiredExam.toString()) && (
-                          <span className="flex items-center gap-1 text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">
-                            <Lock className="w-3 h-3" /> Locked
+                        {isSecLocked ? (
+                          <span className="flex items-center gap-1.5 text-xs font-bold text-gray-500 bg-gray-200 px-3 py-1.5 rounded-xl">
+                            <Lock className="w-3.5 h-3.5" /> قسم مقفل 🔒
                           </span>
-                        )}
-                        {activeLessons.length > 0 && (
-                          <span className="text-xs font-semibold text-gray-500 bg-white px-3 py-1 rounded-full">
-                            {activeLessons.length} محاضرة
+                        ) : section.status === 'COMPLETED' ? (
+                          <span className="flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-100 px-3 py-1.5 rounded-xl">
+                            <CheckCircle className="w-3.5 h-3.5" /> مكتمل بالكامل ✓
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-xl">
+                            متاح 🔓 ({sectionLessons.length} محاضرة)
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {course.progressionEnabled && section.requiredExam && !passedExams.has(section.requiredExam.toString()) ? (
+                    {/* Lessons Tree */}
+                    {isSecLocked ? (
                       <div className="px-6 py-8 text-center bg-gray-50 flex flex-col items-center justify-center">
-                        <Lock className="w-8 h-8 text-gray-400 mb-2" />
-                        <p className="text-sm font-bold text-gray-500">هذا القسم مقفل. يجب عليك اجتياز الامتحان السابق بنسبة {section.passingPercentage || 90}% لفتحه.</p>
+                        <Lock className="w-10 h-10 text-gray-400 mb-2" />
+                        <p className="text-sm font-bold text-gray-600">هذا القسم مقفل حالياً.</p>
+                        <p className="text-xs text-gray-500 mt-1">يجب إنهاء المحاضرات والامتحانات للقسم السابق لفتح هذا القسم تلقائياً.</p>
                       </div>
                     ) : (
-                      <>
-                        {section.description && (
-                          <div className="px-6 py-3 bg-gray-50 border-b border-gray-100">
-                            <p className="text-sm text-gray-500">{section.description}</p>
-                          </div>
-                        )}
-                        {activeLessons.length > 0 && (
-                          <div className="divide-y divide-gray-50">
-                            {activeLessons.map((lesson, lIdx) => (
-                              <div key={lesson._id.toString()} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition">
-                                <div className="flex items-center gap-3">
-                                  <span className="w-6 h-6 rounded-full bg-[#1E3A8A]/10 text-[#1E3A8A] font-bold text-xs flex items-center justify-center">
-                                    {lIdx + 1}
-                                  </span>
-                                  <div>
-                                    <p className="font-semibold text-[#061B3D] text-sm">{lesson.title}</p>
-                                    {lesson.duration && (
-                                      <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                                        <Clock className="w-3 h-3" /> {lesson.duration}
-                                      </p>
-                                    )}
+                      <div className="divide-y divide-gray-100">
+                        {sectionLessons.map((video: any, vIdx: number) => {
+                          const plat = (video.platform || 'ZOOM').toString().toUpperCase();
+                          const isLocked = video.status === 'LOCKED';
+                          const isCompleted = video.status === 'COMPLETED';
+
+                          return (
+                            <div key={video._id.toString()} className={`px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition flex-wrap gap-4 ${isLocked ? 'bg-gray-50/70' : ''}`}>
+                              <div className="flex items-center gap-4">
+                                <span className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center ${isCompleted ? 'bg-green-100 text-green-800' : isLocked ? 'bg-gray-200 text-gray-500' : 'bg-blue-100 text-blue-800'}`}>
+                                  {isCompleted ? <CheckCircle className="w-4 h-4 text-green-600" /> : isLocked ? <Lock className="w-3.5 h-3.5" /> : vIdx + 1}
+                                </span>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className={`font-bold text-base ${isLocked ? 'text-gray-400' : 'text-[#061B3D]'}`}>{video.title}</p>
+                                    {/* Platform Tag */}
+                                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${plat === 'ZOOM' ? 'bg-blue-100 text-blue-800' : plat === 'FREE_CONFERENCE' ? 'bg-purple-100 text-purple-800' : 'bg-red-100 text-red-800'}`}>
+                                      {plat === 'ZOOM' ? 'Zoom Live' : plat === 'FREE_CONFERENCE' ? 'Free Conference' : 'Video Player'}
+                                    </span>
                                   </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {lesson.pdfFile && (
-                                    <a
-                                      href={lesson.pdfFile}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs bg-orange-50 text-orange-600 px-2 py-1 rounded-lg font-semibold flex items-center gap-1"
-                                    >
-                                      <FileText className="w-3 h-3" /> PDF
-                                    </a>
+
+                                  {video.description && <p className="text-xs text-gray-500 mt-1">{video.description}</p>}
+
+                                  {/* Prerequisites Information Badge */}
+                                  {isLocked && (
+                                    <div className="mt-2 text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200/60 inline-flex items-center gap-1.5 font-bold">
+                                      <Lock className="w-3.5 h-3.5 text-amber-600" />
+                                      {video.prerequisiteExamId ? `يتطلب اجتياز الامتحان السابق بنسبة ${video.passingPercentage}%` : 'يتطلب مشاهدة المحاضرة السابقة أولاً'}
+                                    </div>
                                   )}
-                                  <a
-                                    href={lesson.zoomLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-blue-100 transition"
-                                  >
-                                    <ExternalLink className="w-3 h-3" /> دخول المحاضرة
-                                  </a>
+
+                                  {video.examId && (
+                                    <div className="mt-1.5 flex items-center gap-2 text-xs text-indigo-700 bg-indigo-50 px-3 py-1 rounded-lg inline-flex">
+                                      <Award className="w-3.5 h-3.5 text-indigo-600" />
+                                      <span>امتحان المحاضرة (نسبة النجاح المطلوب: {video.passingPercentage}%)</span>
+                                      {video.latestPercentage > 0 && (
+                                        <span className={`font-bold ml-1 ${video.examPassed ? 'text-green-600' : 'text-red-600'}`}>
+                                          - درجاتك: {video.latestPercentage}% {video.examPassed ? '✓ متفوق' : '❌ لم تعبر'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                        {activeLessons.length === 0 && (
-                          <div className="px-6 py-4 text-sm text-gray-400 text-center">
-                            سيتم إضافة محاضرات هذا القسم قريباً
-                          </div>
-                        )}
-                      </>
+
+                              {/* Action Button Area */}
+                              <div className="flex items-center gap-3">
+                                {isLocked ? (
+                                  <button disabled className="text-xs bg-gray-200 text-gray-500 px-4 py-2.5 rounded-xl font-bold flex items-center gap-1.5 cursor-not-allowed">
+                                    <Lock className="w-3.5 h-3.5" /> المحاضرة مغلقة 🔒
+                                  </button>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    {video.examId && !video.examPassed && video.canRetake && (
+                                      <Link
+                                        href={`/exams/${video.examId._id || video.examId}`}
+                                        className="text-xs bg-amber-500 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-1.5 hover:bg-amber-600 transition shadow-sm"
+                                      >
+                                        <RefreshCw className="w-3.5 h-3.5" /> تقديم امتحان المحاضرة 📝
+                                      </Link>
+                                    )}
+                                    <Link
+                                      href={`/lectures/${video._id}`}
+                                      className={`text-xs px-5 py-2.5 rounded-xl font-bold flex items-center gap-1.5 transition shadow-sm ${isCompleted ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-[#1E3A8A] text-white hover:bg-[#061B3D]'}`}
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" /> {isCompleted ? 'مراجعة المحاضرة ✓' : 'دخول المحاضرة 🔓'}
+                                    </Link>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 );

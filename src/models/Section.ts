@@ -6,11 +6,14 @@ export interface ISection extends Document {
   description: string;
   image: string;
   order: number;
-  requiredExam?: mongoose.Types.ObjectId;
-  passingPercentage?: number;
+  requiredExamId?: mongoose.Types.ObjectId;
+  requiredExam?: mongoose.Types.ObjectId; // Legacy alias
+  passingPercentage: number;
   targetSpecializations?: mongoose.Types.ObjectId[];
   targetType?: 'all' | 'specific';
+  status: 'published' | 'draft';
   createdAt: Date;
+  updatedAt: Date;
 }
 
 const SectionSchema = new Schema<ISection>({
@@ -19,10 +22,12 @@ const SectionSchema = new Schema<ISection>({
   description: { type: String, default: '' },
   image: { type: String, default: '' },
   order: { type: Number, default: 0 },
+  requiredExamId: { type: Schema.Types.ObjectId, ref: 'Exam' },
   requiredExam: { type: Schema.Types.ObjectId, ref: 'Exam' },
-  passingPercentage: { type: Number, default: 0 },
+  passingPercentage: { type: Number, default: 80 },
   targetSpecializations: [{ type: Schema.Types.ObjectId, ref: 'Specialization' }],
   targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
+  status: { type: String, enum: ['published', 'draft'], default: 'published' },
 }, { timestamps: true });
 
 export const Section = mongoose.models.Section || mongoose.model<ISection>('Section', SectionSchema);

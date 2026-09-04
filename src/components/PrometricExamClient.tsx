@@ -18,7 +18,7 @@ function getQuestionStatus(answered: boolean, flagged: boolean) {
   return "UNATTEMPTED";
 }
 
-export default function PrometricExamClient({ exam }: { exam: any }) {
+export default function PrometricExamClient({ exam, accessCode }: { exam: any; accessCode?: string }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("landing");
   const [instructionPage, setInstructionPage] = useState(1);
@@ -76,7 +76,7 @@ export default function PrometricExamClient({ exam }: { exam: any }) {
       const res = await fetch(`/api/student/exams/${exam._id}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentName })
+        body: JSON.stringify({ studentName, accessCode })
       });
       const data = await res.json();
       if (!res.ok) { setStartError(data.message || "Failed to start exam"); setIsStarting(false); return; }

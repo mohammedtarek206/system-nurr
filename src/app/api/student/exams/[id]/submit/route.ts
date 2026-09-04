@@ -7,6 +7,7 @@ import { Result } from '@/models/Result';
 import { Certificate } from '@/models/Certificate';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
+import { evaluateExamSubmission } from '@/lib/progressionEngine';
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -14,13 +15,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id: examId } = await params;
 
     const token = (await cookies()).get('token')?.value;
-    if (!token) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-
-    let user: any;
-    try {
-      user = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
-    } catch {
-      return NextResponse.json({ message: 'Invalid token' }, { status: 401 });
+    let user: any = null;
+    if (token) {
+      try {
+        user = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+      } catch { }
     }
 
     const body = await req.json();
@@ -29,7 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!attemptId) return NextResponse.json({ message: 'attemptId is required' }, { status: 400 });
 
     // Load attempt
-    const attempt = await ExamAttempt.findOne({ _id: attemptId, userId: user.id, examId });
+    const attempt = await ExamAttempt.findById(attemptId);
     if (!attempt) return NextResponse.json({ message: 'Attempt not found' }, { status: 404 });
 
     if (attempt.status === 'COMPLETED') {
@@ -47,7 +46,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // Load questions WITH correctAnswer (server-side only)
     const allQuestions = await Question.find({ examId }).lean();
 
-    // Calculate score using attempt.answers and Question points
     let correctCount = 0;
     let wrongCount = 0;
     let unansweredCount = 0;
@@ -91,12 +89,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const score = earnedPoints;
     const percentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
-    const passed = percentage >= (exam.passingScore || 50);
+    const passPercentage = exam.passingPercentage || exam.passingScore || 50;
+    const passed = percentage >= passPercentage;
     const submittedAt = new Date();
 
     // Save result
     const result = await Result.create({
-      userId: user.id,
+      userId: user ? user.id : attempt.userId,
       studentName: attempt.studentName,
       examId,
       score,
@@ -135,9 +134,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     attempt.resultId = result._id;
     await attempt.save();
 
-    // Auto-generate certificate if passed and exam linked to course
+    // Evaluate progression unlock dynamically
+    let progressionEval: any = null;
+    const activeUserId = user ? user.id : attempt.userId?.toString();
+    if (activeUserId) {
+      progressionEval = await evaluateExamSubmission(activeUserId, examId.toString(), percentage, score);
+    }
+
+    // Auto-generate certificate if passed and user logged in & exam linked to course
     let createdCert = false;
-    if (passed && exam.courseId) {
+    if (user && passed && exam.courseId) {
       const existingCert = await Certificate.findOne({ userId: user.id, courseId: exam.courseId });
       if (!existingCert) {
         const certNumber = `CERT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
@@ -153,73 +159,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     }
 
-    // Trigger Notifications asynchronously
-    (async () => {
-      const { sendNotificationToUser } = await import('@/lib/notifications');
-      const examTitle = exam.title || 'الامتحان';
+    // Trigger Notifications asynchronously if user logged in
+    if (user) {
+      (async () => {
+        const { sendNotificationToUser } = await import('@/lib/notifications');
+        const examTitle = exam.title || 'الامتحان';
 
-      // 1. Result Notification
-      await sendNotificationToUser({
-        userId: user.id,
-        type: 'EXAM_RESULT',
-        title: 'ظهرت نتيجة الامتحان',
-        message: `حصلت على ${percentage}% في ${examTitle}`,
-        link: `/dashboard`,
-        contentId: `exam_res_${result._id}`,
-        contentType: 'exam',
-        priority: 'normal'
-      });
-
-      // 2. Pass / Fail / Perfect Score Notification
-      if (percentage === 100) {
         await sendNotificationToUser({
           userId: user.id,
-          type: 'EXAM_PERFECT_SCORE',
-          title: 'مبروك! الدرجة النهائية 100%',
-          message: `أحسنت! لقد حصلت على الدرجة النهائية 100% في ${examTitle}`,
+          type: 'EXAM_RESULT',
+          title: 'ظهرت نتيجة الامتحان',
+          message: `حصلت على ${percentage}% في ${examTitle}`,
           link: `/dashboard`,
-          contentId: `exam_perfect_${result._id}`,
+          contentId: `exam_res_${result._id}`,
           contentType: 'exam',
-          priority: 'urgent'
+          priority: 'normal'
         });
-      } else if (passed) {
-        await sendNotificationToUser({
-          userId: user.id,
-          type: 'EXAM_PASSED',
-          title: 'مبروك! لقد اجتزت الامتحان بنجاح',
-          message: `تهانينا! نجحت في ${examTitle} بنسبة ${percentage}%`,
-          link: `/dashboard`,
-          contentId: `exam_pass_${result._id}`,
-          contentType: 'exam',
-          priority: 'important'
-        });
-      } else {
-        await sendNotificationToUser({
-          userId: user.id,
-          type: 'EXAM_FAILED',
-          title: 'نتيجة الامتحان',
-          message: `لم تحقق درجة النجاح في ${examTitle} (حصلت على ${percentage}% والمطلوب ${exam.passingScore || 50}%)`,
-          link: `/dashboard`,
-          contentId: `exam_fail_${result._id}`,
-          contentType: 'exam',
-          priority: 'important'
-        });
-      }
-
-      // 3. Certificate Notification
-      if (createdCert) {
-        await sendNotificationToUser({
-          userId: user.id,
-          type: 'CERTIFICATE_ISSUED',
-          title: 'تم إصدار شهادتك',
-          message: `مبروك! شهادتك لكورس ${examTitle} أصبحت جاهزة للتحميل`,
-          link: `/dashboard`,
-          contentId: `cert_${user.id}_${exam.courseId}`,
-          contentType: 'certificate',
-          priority: 'urgent'
-        });
-      }
-    })().catch(err => console.error('Exam result notifications error:', err));
+      })().catch(err => console.error('Exam result notifications error:', err));
+    }
 
     // Build review data with original question/answer details
     const reviewQuestions = attempt.questionOrder.map((qId: any) => {
@@ -237,6 +194,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const answerEntry = attempt.answers.find((a: any) => a.questionId.toString() === qId.toString());
       const selected = answerEntry ? answerEntry.selectedOptionOriginalIndex : null;
       const isFlagged = attempt.flaggedQuestions.some((f: any) => f.toString() === qId.toString());
+      const qPoints = Number(question.points) || 1;
 
       return {
         _id: question._id,
@@ -245,6 +203,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         options: displayOptions,
         correctAnswer: question.correctAnswer,
         studentAnswer: selected,
+        points: qPoints,
+        earnedPoints: selected === question.correctAnswer ? qPoints : 0,
+        explanation: question.explanation || '',
         isFlagged,
         isCorrect: selected !== null && selected === question.correctAnswer
       };
@@ -258,6 +219,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       totalPoints,
       percentage,
       passed,
+      passingPercentage: passPercentage,
       totalQuestions: attempt.questionOrder.length,
       correctAnswers: correctCount,
       incorrectAnswers: wrongCount,
@@ -268,11 +230,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       submittedAt,
       studentName: attempt.studentName,
       examTitle: exam.title,
+      progression: progressionEval,
+      nextLessonId: progressionEval?.nextLessonId || null,
+      nextCourseId: progressionEval?.nextCourseId || null,
       reviewQuestions
     });
+
   } catch (error: any) {
     console.error('[SUBMIT EXAM ERROR]', error.stack || error);
-    // Try to reset attempt status if something went wrong
     try {
       const body = await (req as any).json?.().catch(() => ({}));
       if (body?.attemptId) {
@@ -280,8 +245,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     } catch { }
     return NextResponse.json({
-      message: error.message || 'Server error during submission',
-      detail: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message || 'خطأ أثناء تسجيل النتيجة',
     }, { status: 500 });
   }
 }

@@ -6,6 +6,7 @@ import { Section } from '@/models/Section';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
+import { normalizeVideoItem } from '../route';
 
 async function checkAdmin() {
   const token = (await cookies()).get('token')?.value;
@@ -32,8 +33,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     .populate('sectionId', 'title')
     .populate('targetSpecializations', 'arName name');
 
-  if (!video) return NextResponse.json({ success: false, message: "فيديو غير موجود" }, { status: 404 });
-  return NextResponse.json(video);
+  if (!video) return NextResponse.json({ success: false, message: "محاضرة غير موجودة" }, { status: 404 });
+  return NextResponse.json(normalizeVideoItem(video));
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -47,7 +48,27 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   try {
     const data = await req.json();
-    const { courseId, sectionId, title, description, videoType, videoUrl, youtubeUrl, thumbnail, duration, targetType, targetSpecializations, status, order, startDate, startTime, endDate, endTime } = data;
+    const {
+      courseId,
+      sectionId,
+      title,
+      description,
+      platform,
+      videoType,
+      url,
+      videoUrl,
+      youtubeUrl,
+      thumbnail,
+      duration,
+      targetType,
+      targetSpecializations,
+      status,
+      order,
+      startDate,
+      startTime,
+      endDate,
+      endTime
+    } = data;
 
     const payload: any = {};
 
@@ -78,7 +99,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       if (!section) {
         return NextResponse.json({ success: false, message: "القسم المختار غير موجود" }, { status: 400 });
       }
-      const targetCourseId = payload.courseId || (await Video.findById(id))?.courseId;
+      const existingVideo = await Video.findById(id);
+      const targetCourseId = payload.courseId || existingVideo?.courseId;
       if (targetCourseId && section.courseId.toString() !== targetCourseId.toString()) {
         return NextResponse.json({ success: false, message: "القسم المختار لا ينتمي إلى الكورس المختار" }, { status: 400 });
       }
@@ -92,26 +114,41 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       payload.title = title.trim();
     }
 
-    const urlToTest = videoUrl || youtubeUrl;
-    if (urlToTest !== undefined) {
-      if (!urlToTest || typeof urlToTest !== 'string' || !urlToTest.trim()) {
+    // Validate Platform if passed
+    if (platform !== undefined || videoType !== undefined) {
+      const rawPlat = (platform || videoType || 'ZOOM').toString().trim().toUpperCase();
+      if (rawPlat === 'ZOOM') payload.platform = 'ZOOM';
+      else if (rawPlat === 'FREE_CONFERENCE' || rawPlat === 'FREECONFERENCE' || rawPlat === 'FREE CONFERENCE') payload.platform = 'FREE_CONFERENCE';
+      else payload.platform = 'VIDEO';
+      payload.videoType = payload.platform.toLowerCase();
+    }
+
+    // Validate URL if passed
+    const rawUrl = (url !== undefined ? url : videoUrl !== undefined ? videoUrl : youtubeUrl);
+    if (rawUrl !== undefined) {
+      const cleanUrl = (rawUrl || '').toString().trim();
+      if (!cleanUrl) {
         return NextResponse.json({ success: false, message: "يرجى إدخال رابط صحيح للمحاضرة" }, { status: 400 });
       }
       try {
-        new URL(urlToTest);
-        payload.videoUrl = urlToTest;
-        payload.youtubeUrl = urlToTest;
+        const parsedUrl = new URL(cleanUrl);
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+          return NextResponse.json({ success: false, message: "يجب أن يبدأ رابط المحاضرة بـ http:// أو https://" }, { status: 400 });
+        }
+        const cleanUrlStr = parsedUrl.toString();
+        payload.url = cleanUrlStr;
+        payload.videoUrl = cleanUrlStr;
+        payload.youtubeUrl = cleanUrlStr;
       } catch {
         return NextResponse.json({ success: false, message: "يرجى إدخال رابط صحيح للمحاضرة" }, { status: 400 });
       }
     }
 
-    if (description !== undefined) payload.description = description;
-    if (videoType !== undefined) payload.videoType = videoType;
-    if (thumbnail !== undefined) payload.thumbnail = thumbnail;
-    if (duration !== undefined) payload.duration = duration;
+    if (description !== undefined) payload.description = description ? description.trim() : '';
+    if (thumbnail !== undefined) payload.thumbnail = thumbnail ? thumbnail.trim() : '';
+    if (duration !== undefined) payload.duration = duration ? duration.trim() : '';
     if (targetType !== undefined) payload.targetType = targetType;
-    if (targetSpecializations !== undefined) payload.targetSpecializations = targetSpecializations;
+    if (targetSpecializations !== undefined) payload.targetSpecializations = Array.isArray(targetSpecializations) ? targetSpecializations : [];
     if (status !== undefined) payload.status = status;
     if (order !== undefined) payload.order = Number(order) || 0;
     if (startDate !== undefined) payload.startDate = startDate;
@@ -124,8 +161,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       .populate('sectionId', 'title')
       .populate('targetSpecializations', 'arName name');
 
-    if (!video) return NextResponse.json({ success: false, message: "فيديو غير موجود" }, { status: 404 });
-    return NextResponse.json({ success: true, message: "تم تحديث بيانات المحاضرة بنجاح", video });
+    if (!video) return NextResponse.json({ success: false, message: "محاضرة غير موجودة" }, { status: 404 });
+    return NextResponse.json({ success: true, message: "تم تحديث بيانات المحاضرة بنجاح", video: normalizeVideoItem(video) });
   } catch (error: any) {
     console.error("Video edit error:", error);
     if (error.name === 'CastError' || error.message?.includes('Cast to ObjectId failed')) {

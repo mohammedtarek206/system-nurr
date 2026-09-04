@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Users, BookOpen, FileText, Settings, LayoutDashboard, Video, User, Award, Layers, MessageCircle, BookMarked, GraduationCap, Key, ClipboardList } from "lucide-react";
+import { Users, BookOpen, FileText, Settings, LayoutDashboard, Video, User, Award, Layers, MessageCircle, BookMarked, GraduationCap, Key, ClipboardList, Moon, Stethoscope, BarChart3 } from "lucide-react";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 import { redirect } from "next/navigation";
 import ExamsManager from "@/components/admin/ExamsManager";
+import ExamAttemptsManager from "@/components/admin/ExamAttemptsManager";
 import StudentsManager from "@/components/admin/StudentsManager";
 import CoursesManager from "@/components/admin/CoursesManager";
 import VideosManager from "@/components/admin/VideosManager";
@@ -52,7 +53,10 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
     { id: "courses", name: "إدارة الكورسات", icon: BookOpen },
     { id: "subscription-requests", name: "طلبات الاشتراك", icon: MessageCircle, badge: pendingRequests > 0 ? pendingRequests : null },
     { id: "videos", name: "إدارة الفيديوهات", icon: Video },
-    { id: "exams", name: "إدارة الامتحانات", icon: FileText },
+    { id: "night-exams", name: "امتحانات ليلة الامتحان", icon: Moon },
+    { id: "nclex-exams", name: "امتحانات NCLEX", icon: Stethoscope },
+    { id: "exams", name: "إدارة الامتحانات الشاملة", icon: FileText },
+    { id: "exam-attempts", name: "إحصائيات ومحاولات الامتحانات", icon: BarChart3 },
     { id: "access-codes", name: "أكواد الوصول", icon: Key },
     { id: "exam-bookings", name: "إدارة الحجوزات", icon: ClipboardList },
     { id: "results", name: "نتائج الطلاب", icon: Award },
@@ -153,7 +157,11 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
           </>
         )}
 
-        {currentTab === 'exams' && <ExamsManager />}
+        {currentTab === 'night-exams' && <ExamsManager defaultExamType="NIGHT_EXAM" titleOverride="إدارة امتحانات ليلة الامتحان" />}
+        {currentTab === 'nclex-exams' && <ExamsManager defaultExamType="NCLEX" titleOverride="إدارة امتحانات NCLEX" />}
+        {currentTab === 'exams' && <ExamsManager defaultExamType="REGULAR" titleOverride="إدارة الامتحانات العادية والشاملة" />}
+        {currentTab === 'exam-attempts' && <ExamAttemptsManager />}
+
         {currentTab === 'categories' && <CategoriesManager />}
         {currentTab === 'students' && <StudentsManager />}
         {currentTab === 'courses' && <CoursesManager />}

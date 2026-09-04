@@ -5,9 +5,10 @@ import { useAuth } from "@/context/AuthContext";
 import {
     KeyRound, ShieldCheck, Lock, Calendar, Clock, CheckCircle2,
     AlertCircle, Send, Sparkles, BookOpen, User, Phone, MapPin,
-    GraduationCap, Hash, ArrowLeft, RefreshCw, Check
+    GraduationCap, Hash, ArrowLeft, RefreshCw, Check, PlayCircle, Award, FileText
 } from "lucide-react";
 import Footer from "@/components/Footer";
+import Link from "next/link";
 
 interface AccessProtectedPageProps {
     pageType: "NIGHT_EXAM" | "NCLEX";
@@ -34,6 +35,11 @@ export default function AccessProtectedPage({
     const [verifying, setVerifying] = useState(false);
     const [verifyError, setVerifyError] = useState("");
     const [verifiedCodeDetails, setVerifiedCodeDetails] = useState<any>(null);
+
+    // Exams State
+    const [exams, setExams] = useState<any[]>([]);
+    const [loadingExams, setLoadingExams] = useState(false);
+    const [examsError, setExamsError] = useState("");
 
     // Booking Form State
     const [bookingData, setBookingData] = useState({
@@ -63,15 +69,26 @@ export default function AccessProtectedPage({
         }
     }, [user]);
 
-    // Check session storage on mount
-    useEffect(() => {
-        const savedCodeKey = `access_code_${pageType}`;
-        const savedCode = sessionStorage.getItem(savedCodeKey);
-        if (savedCode) {
-            setAccessCode(savedCode);
-            verifyCode(savedCode);
+    // Fetch exams for this section
+    const fetchExams = async (code: string) => {
+        setLoadingExams(true);
+        setExamsError("");
+        try {
+            const res = await fetch(`/api/student/exams?examType=${pageType}&accessCode=${encodeURIComponent(code)}`);
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setExams(data.exams || []);
+            } else {
+                setExamsError(data.message || "حدث خطأ أثناء جلب الامتحانات");
+                setExams([]);
+            }
+        } catch (err) {
+            console.error(err);
+            setExamsError("تعذر الاتصال بالخادم لجلب الامتحانات");
+        } finally {
+            setLoadingExams(false);
         }
-    }, [pageType]);
+    };
 
     const verifyCode = async (codeToVerify: string) => {
         if (!codeToVerify.trim()) {
@@ -91,10 +108,11 @@ export default function AccessProtectedPage({
 
             const data = await res.json();
 
-            if (res.ok && data.valid) {
-                setVerifiedCodeDetails(data.codeDetails);
-                sessionStorage.setItem(`access_code_${pageType}`, codeToVerify.trim());
+            if (res.ok && data.success) {
+                setVerifiedCodeDetails(data);
+                sessionStorage.setItem(`access_code_${pageType}`, codeToVerify.trim().toUpperCase());
                 setStep('unlocked');
+                fetchExams(codeToVerify.trim().toUpperCase());
             } else {
                 setVerifyError(data.message || "كود الدخول غير صحيح أو انتهت صلاحيته");
             }
@@ -105,6 +123,16 @@ export default function AccessProtectedPage({
             setVerifying(false);
         }
     };
+
+    // Check session storage on mount
+    useEffect(() => {
+        const savedCodeKey = `access_code_${pageType}`;
+        const savedCode = sessionStorage.getItem(savedCodeKey);
+        if (savedCode) {
+            setAccessCode(savedCode);
+            verifyCode(savedCode);
+        }
+    }, [pageType]);
 
     const handleVerifySubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -197,7 +225,7 @@ export default function AccessProtectedPage({
             </section>
 
             {/* Main Content Area */}
-            <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-12">
+            <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-12">
                 {/* STEP 1: VERIFY CODE GATE */}
                 {step === 'verify' && (
                     <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden transition-all duration-300">
@@ -263,7 +291,7 @@ export default function AccessProtectedPage({
                     </div>
                 )}
 
-                {/* STEP 2: UNLOCKED CONTENT & EXAM BOOKING FORM */}
+                {/* STEP 2: UNLOCKED CONTENT & AVAILABLE EXAMS */}
                 {step === 'unlocked' && (
                     <div className="space-y-8 animate-fadeIn">
                         {/* Success Banner Notice */}
@@ -289,35 +317,120 @@ export default function AccessProtectedPage({
                             </button>
                         </div>
 
-                        {/* Program Details / Instructions Card */}
-                        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 space-y-4">
-                            <h2 className="text-xl font-bold text-[#061B3D] flex items-center gap-2">
-                                <BookOpen className="w-6 h-6 text-[#1E3A8A]" />
-                                تعليمات ومتطلبات {title}
-                            </h2>
-                            <p className="text-gray-600 leading-relaxed text-sm">
-                                مرحباً بك في قسم {title}. يرجى استكمال بياناتك أدناه بدقة لحجز مقعدك في جلسات المراجعة والامتحانات التقييمية. سيتم ربط هذه البيانات برقمك القومي وحسابك بالمنصة.
-                            </p>
+                        {/* SECTION A: EXAMS LIST */}
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-[#061B3D] flex items-center gap-2">
+                                        <FileText className="w-6 h-6 text-[#1E3A8A]" />
+                                        الامتحانات المتاحة قسم {pageType === 'NIGHT_EXAM' ? 'ليلة الامتحان' : 'NCLEX'}
+                                    </h2>
+                                    <p className="text-gray-500 text-xs mt-1">اضغط على "ابدأ الامتحان" للانتقال لمحاكي الاختبار المتطور</p>
+                                </div>
+                                <button
+                                    onClick={() => fetchExams(accessCode)}
+                                    className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition flex items-center gap-1"
+                                >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${loadingExams ? 'animate-spin' : ''}`} /> تحديث الامتحانات
+                                </button>
+                            </div>
 
-                            {verifiedCodeDetails?.allowedCourses?.length > 0 && (
-                                <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 text-sm">
-                                    <span className="font-bold text-blue-900">الكورسات والمواد المتاحة بهذا الكود: </span>
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                        {verifiedCodeDetails.allowedCourses.map((c: any) => (
-                                            <span key={c._id || c} className="bg-white px-3 py-1 rounded-lg border text-xs font-semibold text-blue-800">
-                                                {c.title || c}
-                                            </span>
-                                        ))}
-                                    </div>
+                            {loadingExams ? (
+                                <div className="text-center py-12 bg-white rounded-3xl border border-gray-100 text-gray-400 font-bold">
+                                    جاري تحميل الامتحانات المتاحة لك...
+                                </div>
+                            ) : examsError ? (
+                                <div className="p-6 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm font-bold">
+                                    {examsError}
+                                </div>
+                            ) : exams.length === 0 ? (
+                                <div className="p-12 text-center text-gray-500 bg-white rounded-3xl border border-dashed border-gray-300 space-y-2">
+                                    <FileText className="w-12 h-12 text-gray-300 mx-auto" />
+                                    <h4 className="font-bold text-gray-700">لا توجد امتحانات جديدة حالياً</h4>
+                                    <p className="text-xs text-gray-400">سيتم إضافة الامتحانات المخصصة لك قريباً بواسطة أدمن المنصة.</p>
+                                </div>
+                            ) : (
+                                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {exams.map((exam) => {
+                                        const isAvailable = exam.canStart;
+                                        const isComingSoon = exam.statusTag === 'COMING_SOON';
+                                        const isEnded = exam.statusTag === 'EXAM_ENDED';
+
+                                        return (
+                                            <div key={exam._id} className="bg-white border border-gray-100 p-6 rounded-3xl shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between space-y-4">
+                                                <div className="space-y-3">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="bg-[#1E3A8A]/10 text-[#1E3A8A] px-3 py-1 rounded-full text-xs font-extrabold">
+                                                            {pageType === 'NIGHT_EXAM' ? '🌙 ليلة الامتحان' : '🩺 NCLEX'}
+                                                        </span>
+                                                        <span className="text-xs text-gray-400 font-mono">
+                                                            {exam.questionsCount} أسئلة
+                                                        </span>
+                                                    </div>
+
+                                                    <h3 className="text-lg font-extrabold text-[#061B3D] leading-snug">
+                                                        {exam.title}
+                                                    </h3>
+
+                                                    {exam.description && (
+                                                        <p className="text-xs text-gray-500 line-clamp-2">
+                                                            {exam.description}
+                                                        </p>
+                                                    )}
+
+                                                    <div className="flex flex-col gap-1.5 text-xs text-gray-600 font-semibold bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                        <span className="flex items-center gap-2">
+                                                            <Clock className="w-4 h-4 text-blue-600" /> المدة: {exam.duration} دقيقة
+                                                        </span>
+                                                        <span className="flex items-center gap-2">
+                                                            <Award className="w-4 h-4 text-amber-500" /> نسبة النجاح المطلوب: {exam.passingPercentage}%
+                                                        </span>
+                                                        {exam.startDate && (
+                                                            <span className="flex items-center gap-2 text-gray-500">
+                                                                <Calendar className="w-4 h-4 text-slate-400" /> البداية: {exam.startDate} {exam.startTime || ''}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {exam.statusMessage && (
+                                                        <div className="text-xs font-bold text-amber-700 bg-amber-50 p-2 rounded-lg text-center">
+                                                            {exam.statusMessage}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {isAvailable ? (
+                                                    <Link
+                                                        href={`/dashboard/take-exam?id=${exam._id}&code=${encodeURIComponent(accessCode)}`}
+                                                        className="w-full bg-gradient-to-r from-[#1E3A8A] to-blue-700 hover:from-blue-900 hover:to-indigo-900 text-white font-extrabold py-3.5 rounded-2xl shadow-md hover:shadow-lg transition-all text-center flex items-center justify-center gap-2"
+                                                    >
+                                                        <PlayCircle className="w-5 h-5 text-gold" /> ابدأ الامتحان الآن
+                                                    </Link>
+                                                ) : isComingSoon ? (
+                                                    <button disabled className="w-full bg-gray-100 text-gray-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-center text-xs">
+                                                        قريباً - لم يبدأ موعد الامتحان
+                                                    </button>
+                                                ) : isEnded ? (
+                                                    <button disabled className="w-full bg-red-50 text-red-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-center text-xs">
+                                                        انتهى وقت ممارسة الامتحان
+                                                    </button>
+                                                ) : (
+                                                    <button disabled className="w-full bg-gray-100 text-gray-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-center text-xs">
+                                                        غير متاح حالياً
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
 
-                        {/* Booking Form Card */}
+                        {/* SECTION B: BOOKING FORM */}
                         <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
                             <div className="p-6 sm:p-8 bg-slate-900 text-white flex items-center justify-between">
                                 <div>
-                                    <h3 className="text-xl font-bold">نموذج حجز وتأكيد الامتحان</h3>
+                                    <h3 className="text-xl font-bold">نموذج حجز ومتابعة الجلسات</h3>
                                     <p className="text-xs text-gray-400 mt-1">الرجاء مراجعة البيانات قبل الحفظ</p>
                                 </div>
                                 <GraduationCap className="w-8 h-8 text-gold" />
@@ -332,7 +445,6 @@ export default function AccessProtectedPage({
                                 )}
 
                                 <div className="grid md:grid-cols-2 gap-6">
-                                    {/* Student Name */}
                                     <div className="space-y-1">
                                         <label className="block text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                                             <User className="w-4 h-4 text-blue-600" />
@@ -348,7 +460,6 @@ export default function AccessProtectedPage({
                                         />
                                     </div>
 
-                                    {/* National ID */}
                                     <div className="space-y-1">
                                         <label className="block text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                                             <Hash className="w-4 h-4 text-blue-600" />
@@ -365,7 +476,6 @@ export default function AccessProtectedPage({
                                         />
                                     </div>
 
-                                    {/* Phone */}
                                     <div className="space-y-1">
                                         <label className="block text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                                             <Phone className="w-4 h-4 text-blue-600" />
@@ -381,7 +491,6 @@ export default function AccessProtectedPage({
                                         />
                                     </div>
 
-                                    {/* Specialization */}
                                     <div className="space-y-1">
                                         <label className="block text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                                             <GraduationCap className="w-4 h-4 text-blue-600" />
@@ -395,67 +504,8 @@ export default function AccessProtectedPage({
                                             className="w-full px-4 py-3 rounded-xl border border-gray-300 outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
                                         />
                                     </div>
-
-                                    {/* Governorate */}
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                                            <MapPin className="w-4 h-4 text-blue-600" />
-                                            المحافظة
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={bookingData.governorate}
-                                            onChange={(e) => setBookingData({ ...bookingData, governorate: e.target.value })}
-                                            placeholder="القاهرة، الإسكندرية..."
-                                            className="w-full px-4 py-3 rounded-xl border border-gray-300 outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                                        />
-                                    </div>
-
-                                    {/* University */}
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                                            <BookOpen className="w-4 h-4 text-blue-600" />
-                                            الجامعة / المعهد
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={bookingData.university}
-                                            onChange={(e) => setBookingData({ ...bookingData, university: e.target.value })}
-                                            placeholder="جامعة عين شمس / المنصورة..."
-                                            className="w-full px-4 py-3 rounded-xl border border-gray-300 outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all text-sm"
-                                        />
-                                    </div>
-
-                                    {/* Exam Date */}
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                                            <Calendar className="w-4 h-4 text-blue-600" />
-                                            تاريخ الامتحان المفضل
-                                        </label>
-                                        <input
-                                            type="date"
-                                            value={bookingData.examDate}
-                                            onChange={(e) => setBookingData({ ...bookingData, examDate: e.target.value })}
-                                            className="w-full px-4 py-3 rounded-xl border border-gray-300 outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all text-sm bg-white"
-                                        />
-                                    </div>
-
-                                    {/* Preferred Time */}
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                                            <Clock className="w-4 h-4 text-blue-600" />
-                                            الوقت المفضل
-                                        </label>
-                                        <input
-                                            type="time"
-                                            value={bookingData.preferredTime}
-                                            onChange={(e) => setBookingData({ ...bookingData, preferredTime: e.target.value })}
-                                            className="w-full px-4 py-3 rounded-xl border border-gray-300 outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-blue-100 transition-all text-sm bg-white"
-                                        />
-                                    </div>
                                 </div>
 
-                                {/* Submit button */}
                                 <div className="pt-4">
                                     <button
                                         type="submit"
@@ -534,7 +584,7 @@ export default function AccessProtectedPage({
                                 className="w-full py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm transition-all flex items-center justify-center gap-2"
                             >
                                 <ArrowLeft className="w-4 h-4" />
-                                <span>العودة لصفحة الامتحان</span>
+                                <span>العودة لصفحة الامتحانات المتاحة</span>
                             </button>
                         </div>
                     </div>

@@ -14,6 +14,7 @@ export interface IAnswerOrder {
 export interface IExamAttempt extends Document {
     userId: mongoose.Types.ObjectId;
     examId: mongoose.Types.ObjectId;
+    examType?: 'REGULAR' | 'NIGHT_EXAM' | 'NCLEX';
     studentName: string;
     // Randomized order of question IDs (as stored in DB)
     questionOrder: mongoose.Types.ObjectId[];
@@ -41,6 +42,7 @@ export interface IExamAttempt extends Document {
 const ExamAttemptSchema = new Schema<IExamAttempt>({
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     examId: { type: Schema.Types.ObjectId, ref: 'Exam', required: true },
+    examType: { type: String, enum: ['REGULAR', 'NIGHT_EXAM', 'NCLEX'], default: 'REGULAR' },
     studentName: { type: String, required: true },
     questionOrder: [{ type: Schema.Types.ObjectId, ref: 'Question' }],
     answerOrders: [{
