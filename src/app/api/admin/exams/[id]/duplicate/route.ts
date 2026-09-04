@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Types } from 'mongoose';
 import connectDB from '@/lib/db';
 import { Exam } from '@/models/Exam';
 import { Question } from '@/models/Question';
@@ -23,11 +24,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params;
 
     try {
-        const originalExam = await Exam.findById(id).lean();
+        interface LeanExamDoc { _id: Types.ObjectId; title: string; status: string; createdAt?: Date; updatedAt?: Date; __v?: number;[key: string]: unknown; }
+        interface LeanQuestionDoc { _id: Types.ObjectId; examId: Types.ObjectId; createdAt?: Date; updatedAt?: Date; __v?: number;[key: string]: unknown; }
+
+        const originalExam = await Exam.findById(id).lean<LeanExamDoc>();
         if (!originalExam) return NextResponse.json({ message: "الامتحان الأصلي غير موجود" }, { status: 404 });
 
-        // Exclude _id, createdAt, updatedAt
-        const { _id, createdAt, updatedAt, ...examData } = originalExam as any;
+        // Exclude _id, createdAt, updatedAt, __v
+        const { _id, createdAt, updatedAt, __v, ...examData } = originalExam;
 
         const duplicatedExam = await Exam.create({
             ...examData,
@@ -36,10 +40,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         });
 
         // Duplicate questions
-        const originalQuestions = await Question.find({ examId: id }).lean();
+        const originalQuestions = await Question.find({ examId: id }).lean<LeanQuestionDoc[]>();
         if (originalQuestions.length > 0) {
-            const duplicatedQuestions = originalQuestions.map((q: any) => {
-                const { _id: qId, createdAt: qCa, updatedAt: qUa, examId: oldExamId, ...qData } = q;
+            const duplicatedQuestions = originalQuestions.map((q) => {
+                const { _id: qId, createdAt: qCa, updatedAt: qUa, __v: qV, examId: oldExamId, ...qData } = q;
                 return {
                     ...qData,
                     examId: duplicatedExam._id

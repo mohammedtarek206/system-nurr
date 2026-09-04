@@ -20,7 +20,7 @@ async function checkAdmin() {
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   await connectDB();
   const { id } = await params;
-  const exam = await Exam.findById(id).lean();
+  const exam = await Exam.findById(id).lean<InstanceType<typeof Exam>>();
   if (!exam) return NextResponse.json({ message: "الامتحان غير موجود" }, { status: 404 });
 
   const questionsCount = await Question.countDocuments({ examId: id });

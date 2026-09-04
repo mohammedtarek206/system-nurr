@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Types } from 'mongoose';
 import connectDB from '@/lib/db';
 import { Exam } from '@/models/Exam';
 import { Question } from '@/models/Question';
@@ -35,11 +36,49 @@ export async function GET(req: Request) {
     query.title = { $regex: search.trim(), $options: 'i' };
   }
 
-  const exams = await Exam.find(query).sort({ order: 1, createdAt: -1 }).lean();
+  // Use explicit lean types so that _id is Types.ObjectId, not unknown
+  interface LeanExam {
+    _id: Types.ObjectId;
+    title: string;
+    description?: string;
+    examType: string;
+    duration: number;
+    passingScore: number;
+    passingPercentage: number;
+    status: string;
+    isPublic: boolean;
+    assignedStudents: Types.ObjectId[];
+    courseId?: Types.ObjectId;
+    sectionId?: Types.ObjectId;
+    startDate?: string;
+    startTime?: string;
+    endDate?: string;
+    endTime?: string;
+    randomizeQuestions?: boolean;
+    randomizeAnswers?: boolean;
+    allowRetake?: boolean;
+    maxAttempts?: number;
+    targetSpecializations: Types.ObjectId[];
+    targetType: string;
+    order?: number;
+    createdAt: Date;
+    updatedAt: Date;
+    [key: string]: unknown;
+  }
+
+  interface LeanQuestion {
+    _id: Types.ObjectId;
+    examId: Types.ObjectId;
+    text: string;
+    points: number;
+    [key: string]: unknown;
+  }
+
+  const exams = await Exam.find(query).sort({ order: 1, createdAt: -1 }).lean<LeanExam[]>();
 
   // Attach total questions and total points for each exam
   const examIds = exams.map(e => e._id);
-  const questions = await Question.find({ examId: { $in: examIds } }).lean();
+  const questions = await Question.find({ examId: { $in: examIds } }).lean<LeanQuestion[]>();
 
   const examsWithStats = exams.map(exam => {
     const examQuestions = questions.filter(q => q.examId.toString() === exam._id.toString());
