@@ -31,6 +31,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const attempt = await ExamAttempt.findById(attemptId);
     if (!attempt) return NextResponse.json({ message: 'Attempt not found' }, { status: 404 });
 
+    // Load exam
+    const exam = await Exam.findById(examId);
+    if (!exam) return NextResponse.json({ message: 'Exam not found' }, { status: 404 });
+
     if (attempt.status === 'COMPLETED') {
       // Attempt already submitted — return full result from DB
       const savedResult = attempt.resultId
@@ -108,10 +112,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // Mark as submitting to prevent double-submit
     attempt.status = 'SUBMITTING';
     await attempt.save();
-
-    // Load exam and questions
-    const exam = await Exam.findById(examId);
-    if (!exam) return NextResponse.json({ message: 'Exam not found' }, { status: 404 });
 
     // Load questions WITH correctAnswer (server-side only)
     const allQuestions = await Question.find({ examId }).lean();
