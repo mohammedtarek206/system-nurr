@@ -32,7 +32,77 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!attempt) return NextResponse.json({ message: 'Attempt not found' }, { status: 404 });
 
     if (attempt.status === 'COMPLETED') {
-      return NextResponse.json({ message: 'Exam already submitted', alreadySubmitted: true }, { status: 409 });
+      // Attempt already submitted — return full result from DB
+      const savedResult = attempt.resultId
+        ? await Result.findById(attempt.resultId).lean()
+        : null;
+
+      // Rebuild reviewQuestions from saved data if we have them
+      let reviewQuestions: any[] = [];
+      if (savedResult && (savedResult as any).questionOrder?.length) {
+        const allQs = await Question.find({ examId }).lean();
+        reviewQuestions = ((savedResult as any).questionOrder as any[]).map((qId: any) => {
+          const question = allQs.find((q: any) => q._id.toString() === qId.toString());
+          if (!question) return null;
+          const aoEntry = ((savedResult as any).answerOrder || []).find(
+            (ao: any) => ao.questionId.toString() === qId.toString()
+          );
+          const shuffledOrder: number[] = aoEntry?.options?.length
+            ? aoEntry.options
+            : (question as any).options.map((_: any, i: number) => i);
+          const displayOptions = shuffledOrder.map((origIdx: number) => ({
+            text: (question as any).options[origIdx],
+            originalIndex: origIdx
+          }));
+          const ansRec = ((savedResult as any).answers || []).find(
+            (a: any) => a.questionId.toString() === qId.toString()
+          );
+          const selected = ansRec ? ansRec.selectedOption : null;
+          const isFlagged = ansRec?.isFlagged ?? false;
+          const qPoints = Number((question as any).points) || 1;
+          return {
+            _id: question._id,
+            text: (question as any).text,
+            clinicalCase: (question as any).clinicalCase || '',
+            options: displayOptions,
+            correctAnswer: (question as any).correctAnswer,
+            studentAnswer: selected,
+            points: qPoints,
+            earnedPoints: selected === (question as any).correctAnswer ? qPoints : 0,
+            explanation: (question as any).explanation || '',
+            isFlagged,
+            isCorrect: selected !== null && selected === (question as any).correctAnswer
+          };
+        }).filter(Boolean);
+      }
+
+      const passPerc = (savedResult as any)?.percentage ?? attempt.percentage ?? 0;
+      const passThreshold =
+        (await Exam.findById(examId).select('passingPercentage passingScore').lean() as any)?.passingPercentage
+        || (await Exam.findById(examId).select('passingScore').lean() as any)?.passingScore
+        || 50;
+
+      return NextResponse.json({
+        alreadySubmitted: true,
+        resultId: attempt.resultId,
+        score: (savedResult as any)?.score ?? attempt.score ?? 0,
+        earnedPoints: (savedResult as any)?.earnedPoints ?? attempt.earnedPoints ?? 0,
+        totalPoints: (savedResult as any)?.totalPoints ?? attempt.totalPoints ?? 0,
+        percentage: passPerc,
+        passed: passPerc >= passThreshold,
+        passingPercentage: passThreshold,
+        totalQuestions: (savedResult as any)?.totalQuestions ?? attempt.questionOrder.length,
+        correctAnswers: (savedResult as any)?.correctAnswers ?? attempt.correctCount ?? 0,
+        incorrectAnswers: (savedResult as any)?.incorrectAnswers ?? attempt.wrongCount ?? 0,
+        unansweredCount: (savedResult as any)?.unanswered ?? attempt.unansweredCount ?? 0,
+        flaggedCount: (savedResult as any)?.flagged ?? attempt.flaggedQuestions.length,
+        timeSpentSeconds: (savedResult as any)?.timeSpentSeconds ?? attempt.timeSpentSeconds ?? 0,
+        startedAt: attempt.startedAt,
+        submittedAt: attempt.submittedAt,
+        studentName: attempt.studentName,
+        examTitle: exam?.title ?? '',
+        reviewQuestions
+      });
     }
 
     // Mark as submitting to prevent double-submit
