@@ -19,6 +19,7 @@ export interface ICourse extends Document {
   category: string;
   targetSpecializations: mongoose.Types.ObjectId[];
   targetType: 'all' | 'specific';
+  accessRequiresApproval?: boolean;
   progressionEnabled?: boolean;
   progressionMode: CourseProgressionMode;
   finalExamId?: mongoose.Types.ObjectId;
@@ -50,6 +51,7 @@ const CourseSchema = new Schema<ICourse>({
   category: { type: String, default: '' },
   targetSpecializations: [{ type: Schema.Types.ObjectId, ref: 'Specialization' }],
   targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
+  accessRequiresApproval: { type: Boolean, default: true },
   progressionEnabled: { type: Boolean, default: true },
   progressionMode: {
     type: String,

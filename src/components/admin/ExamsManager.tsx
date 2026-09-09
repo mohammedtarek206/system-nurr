@@ -40,6 +40,48 @@ export default function ExamsManager({ defaultExamType, titleOverride }: ExamsMa
     explanation: ""
   });
 
+  // Quick Paste & Bulk Questions State
+  const [questionTab, setQuestionTab] = useState<'manual' | 'paste' | 'csv'>('manual');
+  const [pastedText, setPastedText] = useState("");
+  const [parsedPreview, setParsedPreview] = useState<any[]>([]);
+  const [savingBulk, setSavingBulk] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+
+  const handleParsePastedText = () => {
+    setBulkError("");
+    if (!pastedText.trim()) return;
+    const { parseQuestionsFromText } = require("@/lib/questionParser");
+    const results = parseQuestionsFromText(pastedText);
+    setParsedPreview(results);
+  };
+
+  const handleSaveBulkQuestions = async () => {
+    if (parsedPreview.length === 0) return;
+    setSavingBulk(true);
+    setBulkError("");
+    try {
+      const res = await fetch(`/api/admin/exams/${selectedExam._id}/questions/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questions: parsedPreview }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setQuestions([...questions, ...data.questions]);
+        setPastedText("");
+        setParsedPreview([]);
+        setQuestionTab("manual");
+        fetchData();
+      } else {
+        setBulkError(data.message || "فشل حفظ الأسئلة.");
+      }
+    } catch (e: any) {
+      setBulkError("حدث خطأ في الاتصال بالخادم.");
+    } finally {
+      setSavingBulk(false);
+    }
+  };
+
   // Assign Modal State
   const [assignExamModal, setAssignExamModal] = useState<any>(null);
   const [studentsList, setStudentsList] = useState<any[]>([]);
@@ -603,7 +645,7 @@ export default function ExamsManager({ defaultExamType, titleOverride }: ExamsMa
 
                       <td className="p-4 font-medium">
                         <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${exam.examType === 'NIGHT_EXAM' ? 'bg-amber-100 text-amber-800' :
-                            exam.examType === 'NCLEX' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'
+                          exam.examType === 'NCLEX' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'
                           }`}>
                           {typeLabel}
                         </span>
@@ -626,7 +668,7 @@ export default function ExamsManager({ defaultExamType, titleOverride }: ExamsMa
 
                       <td className="p-4">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${exam.status === 'published' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                            exam.status === 'hidden' ? 'bg-gray-100 text-gray-600' : 'bg-amber-50 text-amber-700'
+                          exam.status === 'hidden' ? 'bg-gray-100 text-gray-600' : 'bg-amber-50 text-amber-700'
                           }`}>
                           {exam.status === 'published' ? 'منشور' : exam.status === 'hidden' ? 'مخفي' : 'مسودة'}
                         </span>
@@ -698,109 +740,216 @@ export default function ExamsManager({ defaultExamType, titleOverride }: ExamsMa
               </button>
             </div>
 
-            {/* Question Add / Edit Form */}
-            <form onSubmit={handleQuestionSubmit} className="bg-slate-50 p-6 rounded-2xl border border-gray-200 space-y-4">
-              <h4 className="font-bold text-sm text-[#061B3D]">
-                {editingQuestionId ? "تعديل السؤال" : "إضافة سؤال جديد"}
-              </h4>
+            {/* Question Entry Mode Tabs */}
+            <div className="flex border-b border-gray-200 gap-2 pb-2">
+              <button
+                type="button"
+                onClick={() => setQuestionTab('manual')}
+                className={`px-4 py-2 text-xs font-bold rounded-xl transition ${questionTab === 'manual' ? 'bg-[#1E3A8A] text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                ✏️ إدخال يدوي لسؤال واحد
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuestionTab('paste')}
+                className={`px-4 py-2 text-xs font-bold rounded-xl transition ${questionTab === 'paste' ? 'bg-amber-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                📋 لصق سريع واستيراد مجمع (Quick Paste)
+              </button>
+            </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">الحالة السريرية / السيناريو (اختياري Clinical Case)</label>
+            {questionTab === 'paste' && (
+              <div className="bg-amber-50/50 p-6 rounded-2xl border border-amber-200/80 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-bold text-sm text-amber-900">لصق الأسئلة مباشرة من Word / PDF / Excel</h4>
+                  <span className="text-[10px] text-amber-700 font-semibold bg-amber-100 px-2.5 py-1 rounded-full">
+                    يدعم العربي والإنجليزي وتحديد الإجابات أوتوماتيكياً
+                  </span>
+                </div>
+
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  قم بنسخ نص الأسئلة من أي ملف ولصقه هنا. المحلل الذكي سيتعرف على نص السؤال، الخيارات (A, B, C, D)، الإجابة الصحيحة (التي تحتها خط أو الممتازة بـ Answer: C أو * أو [x]) والتفسير تلقائياً.
+                </p>
+
                 <textarea
-                  rows={2}
-                  placeholder="مثال: Patient is a 45-year-old male with severe chest pain..."
-                  value={questionData.clinicalCase}
-                  onChange={(e) => setQuestionData({ ...questionData, clinicalCase: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:border-[#1E3A8A]"
+                  rows={8}
+                  placeholder={`انسخ الأسئلة والصقها هنا، مثال:\n\n1. What is the normal range for human arterial blood pH?\nA) 7.15 - 7.25\nB) 7.35 - 7.45*\nC) 7.50 - 7.60\nD) 6.80 - 7.00\nExplanation: Normal blood pH is 7.35-7.45.\n\n2. أي من الأدوية التالية يستخدم لعلاج ارتفاع ضغط الدم؟\nأ) لوسارتان (Losartan) *\nب) باراسيتامول\nج) انسولين\nد) أموكسيسيلين`}
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl border border-amber-200 text-xs font-mono outline-none focus:border-amber-500 bg-white"
                 />
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">نص السؤال *</label>
-                <textarea
-                  required
-                  rows={2}
-                  placeholder="اكتب السؤال هنا..."
-                  value={questionData.text}
-                  onChange={(e) => setQuestionData({ ...questionData, text: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:border-[#1E3A8A]"
-                />
-              </div>
+                <div className="flex justify-between items-center">
+                  <button
+                    type="button"
+                    onClick={handleParsePastedText}
+                    className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition shadow-sm flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" /> تحليل ومعاينة الأسئلة (Preview)
+                  </button>
 
-              {/* Options */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {questionData.options.map((opt, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
+                  {parsedPreview.length > 0 && (
+                    <span className="text-xs font-bold text-emerald-700">
+                      تم استخراج {parsedPreview.length} سؤال بنجاح!
+                    </span>
+                  )}
+                </div>
+
+                {bulkError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl">
+                    {bulkError}
+                  </div>
+                )}
+
+                {/* Parsed Questions Preview Table */}
+                {parsedPreview.length > 0 && (
+                  <div className="space-y-4 pt-4 border-t border-amber-200">
+                    <div className="flex justify-between items-center">
+                      <h5 className="font-bold text-xs text-[#061B3D]">جدول المعاينة والتأكيد قبل الحفظ</h5>
+                      <button
+                        type="button"
+                        onClick={handleSaveBulkQuestions}
+                        disabled={savingBulk}
+                        className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow-sm"
+                      >
+                        {savingBulk ? "جاري الحفظ..." : `حفظ جميع الأسئلة المستخرجة (${parsedPreview.length})`}
+                      </button>
+                    </div>
+
+                    <div className="max-h-64 overflow-y-auto space-y-3 pr-1">
+                      {parsedPreview.map((pq, idx) => (
+                        <div key={idx} className="p-4 bg-white rounded-xl border border-gray-200 text-xs space-y-2">
+                          <div className="flex justify-between font-bold text-gray-800">
+                            <span>سؤال #{idx + 1}: {pq.text}</span>
+                            <button
+                              type="button"
+                              onClick={() => setParsedPreview(parsedPreview.filter((_, i) => i !== idx))}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              إزالة
+                            </button>
+                          </div>
+                          {pq.clinicalCase && <p className="italic text-gray-500">سيناريو: {pq.clinicalCase}</p>}
+                          <div className="grid grid-cols-2 gap-2 text-[11px]">
+                            {pq.options.map((opt: string, oIdx: number) => (
+                              <span key={oIdx} className={`p-1.5 rounded ${oIdx === pq.correctAnswer ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-gray-100'}`}>
+                                {String.fromCharCode(65 + oIdx)}: {opt}
+                              </span>
+                            ))}
+                          </div>
+                          {pq.explanation && <p className="text-[10px] text-blue-600">الشرح: {pq.explanation}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {questionTab === 'manual' && (
+              <form onSubmit={handleQuestionSubmit} className="bg-slate-50 p-6 rounded-2xl border border-gray-200 space-y-4">
+                <h4 className="font-bold text-sm text-[#061B3D]">
+                  {editingQuestionId ? "تعديل السؤال" : "إضافة سؤال جديد"}
+                </h4>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">الحالة السريرية / السيناريو (اختياري Clinical Case)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="مثال: Patient is a 45-year-old male with severe chest pain..."
+                    value={questionData.clinicalCase}
+                    onChange={(e) => setQuestionData({ ...questionData, clinicalCase: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:border-[#1E3A8A]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">نص السؤال *</label>
+                  <textarea
+                    required
+                    rows={2}
+                    placeholder="اكتب السؤال هنا..."
+                    value={questionData.text}
+                    onChange={(e) => setQuestionData({ ...questionData, text: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:border-[#1E3A8A]"
+                  />
+                </div>
+
+                {/* Options */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {questionData.options.map((opt, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="correctAnswerRadio"
+                        checked={questionData.correctAnswer === idx}
+                        onChange={() => setQuestionData({ ...questionData, correctAnswer: idx })}
+                        className="w-4 h-4 text-[#1E3A8A]"
+                        title="تحديد كإجابة صحيحة"
+                      />
+                      <input
+                        required
+                        type="text"
+                        placeholder={`الخيار ${String.fromCharCode(65 + idx)}`}
+                        value={opt}
+                        onChange={(e) => {
+                          const newOpts = [...questionData.options];
+                          newOpts[idx] = e.target.value;
+                          setQuestionData({ ...questionData, options: newOpts });
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:border-[#1E3A8A]"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">نقاط السؤال (Points)</label>
                     <input
-                      type="radio"
-                      name="correctAnswerRadio"
-                      checked={questionData.correctAnswer === idx}
-                      onChange={() => setQuestionData({ ...questionData, correctAnswer: idx })}
-                      className="w-4 h-4 text-[#1E3A8A]"
-                      title="تحديد كإجابة صحيحة"
-                    />
-                    <input
-                      required
-                      type="text"
-                      placeholder={`الخيار ${String.fromCharCode(65 + idx)}`}
-                      value={opt}
-                      onChange={(e) => {
-                        const newOpts = [...questionData.options];
-                        newOpts[idx] = e.target.value;
-                        setQuestionData({ ...questionData, options: newOpts });
-                      }}
+                      type="number"
+                      step="0.5"
+                      min="0.1"
+                      value={questionData.points}
+                      onChange={(e) => setQuestionData({ ...questionData, points: Number(e.target.value) })}
                       className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:border-[#1E3A8A]"
                     />
                   </div>
-                ))}
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">نقاط السؤال (Points)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0.1"
-                    value={questionData.points}
-                    onChange={(e) => setQuestionData({ ...questionData, points: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:border-[#1E3A8A]"
-                  />
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">الشرح والتفسير (Explanation)</label>
+                    <input
+                      type="text"
+                      placeholder="شرح الإجابة الصحيحة للطالب بعد انتهاء الامتحان..."
+                      value={questionData.explanation}
+                      onChange={(e) => setQuestionData({ ...questionData, explanation: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:border-[#1E3A8A]"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">الشرح والتفسير (Explanation)</label>
-                  <input
-                    type="text"
-                    placeholder="شرح الإجابة الصحيحة للطالب بعد انتهاء الامتحان..."
-                    value={questionData.explanation}
-                    onChange={(e) => setQuestionData({ ...questionData, explanation: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-xs outline-none focus:border-[#1E3A8A]"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                {editingQuestionId && (
+                <div className="flex justify-end gap-2 pt-2">
+                  {editingQuestionId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingQuestionId(null);
+                        setQuestionData({ text: "", clinicalCase: "", options: ["", "", "", ""], correctAnswer: 0, points: 1, explanation: "" });
+                      }}
+                      className="px-4 py-2 rounded-xl bg-gray-200 text-gray-700 font-bold text-xs"
+                    >
+                      إلغاء التعديل
+                    </button>
+                  )}
                   <button
-                    type="button"
-                    onClick={() => {
-                      setEditingQuestionId(null);
-                      setQuestionData({ text: "", clinicalCase: "", options: ["", "", "", ""], correctAnswer: 0, points: 1, explanation: "" });
-                    }}
-                    className="px-4 py-2 rounded-xl bg-gray-200 text-gray-700 font-bold text-xs"
+                    type="submit"
+                    className="px-6 py-2 rounded-xl bg-[#1E3A8A] text-white font-bold text-xs hover:bg-blue-900 transition"
                   >
-                    إلغاء التعديل
+                    {editingQuestionId ? "تحديث السؤال" : "إضافة السؤال للامتحان"}
                   </button>
-                )}
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-[#1E3A8A] text-white font-bold text-xs hover:bg-blue-900 transition"
-                >
-                  {editingQuestionId ? "تحديث السؤال" : "إضافة السؤال للامتحان"}
-                </button>
-              </div>
-            </form>
+                </div>
+              </form>
+            )}
 
             {/* Questions List */}
             <div className="space-y-3">

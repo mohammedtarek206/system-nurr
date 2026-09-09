@@ -7,6 +7,7 @@ import { AccessCode } from '@/models/AccessCode';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 import { parseDateTime } from '@/lib/dateUtils';
+import { checkContentAccess } from '@/lib/accessControl';
 
 function shuffle<T>(arr: T[]): T[] {
     const a = [...arr];
@@ -57,6 +58,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
             if (codeRecord.status === 'Disabled') {
                 return NextResponse.json({ message: 'كود الوصول معطل.' }, { status: 403 });
+            }
+        }
+
+        // Content Access Authorization Check
+        if (user) {
+            const accessRes = await checkContentAccess(
+                { id: user.id, role: user.role, specializationId: user.specializationId },
+                'EXAM',
+                examId
+            );
+            if (!accessRes.hasAccess) {
+                return NextResponse.json({ message: accessRes.message || 'لا تملك صلاحية لتقديم هذا الامتحان حالياً.' }, { status: 403 });
             }
         }
 

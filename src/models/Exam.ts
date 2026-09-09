@@ -27,6 +27,7 @@ export interface IExam extends Document {
   maxAttempts?: number;
   targetSpecializations: mongoose.Types.ObjectId[];
   targetType: 'all' | 'specific';
+  accessRequiresApproval?: boolean;
   order?: number;
   createdAt: Date;
   updatedAt: Date;
@@ -65,6 +66,7 @@ const ExamSchema = new Schema<IExam>({
   maxAttempts: { type: Number, default: 1 },
   targetSpecializations: [{ type: Schema.Types.ObjectId, ref: 'Specialization' }],
   targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
+  accessRequiresApproval: { type: Boolean, default: false },
   order: { type: Number, default: 0 },
 }, { timestamps: true });
 

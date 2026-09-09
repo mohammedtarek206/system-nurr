@@ -14,9 +14,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  setUser: () => {},
-  refreshUser: async () => {},
-  logout: async () => {},
+  setUser: () => { },
+  refreshUser: async () => { },
+  logout: async () => { },
 });
 
 export const AuthProvider = ({ children, initialUser }: { children: React.ReactNode, initialUser: User }) => {

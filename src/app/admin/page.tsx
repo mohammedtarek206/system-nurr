@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, BookOpen, FileText, Settings, LayoutDashboard, Video, User, Award, Layers, MessageCircle, BookMarked, GraduationCap, Key, ClipboardList, Moon, Stethoscope, BarChart3 } from "lucide-react";
+import { Users, BookOpen, FileText, Settings, LayoutDashboard, Video, User, Award, Layers, MessageCircle, BookMarked, GraduationCap, Key, ClipboardList, Moon, Stethoscope, BarChart3, ShieldAlert } from "lucide-react";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 import { redirect } from "next/navigation";
@@ -16,6 +16,7 @@ import SpecializationsManager from "@/components/admin/SpecializationsManager";
 import NotificationsManager from "@/components/admin/NotificationsManager";
 import AccessCodesManager from "@/components/admin/AccessCodesManager";
 import ExamBookingsManager from "@/components/admin/ExamBookingsManager";
+import ContentAccessRequestsManager from "@/components/admin/ContentAccessRequestsManager";
 import connectDB from "@/lib/db";
 import { User as UserModel } from "@/models/User";
 import { Course as CourseModel } from "@/models/Course";
@@ -62,6 +63,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
     { id: "results", name: "نتائج الطلاب", icon: Award },
     { id: "summaries", name: "الملخصات", icon: BookMarked },
     { id: "specializations", name: "إدارة التخصصات", icon: GraduationCap },
+    { id: "access-requests", name: "طلبات صلاحيات المحتوى", icon: ShieldAlert },
     { id: "notifications", name: "إدارة الإشعارات", icon: Bell },
     { id: "settings", name: "الإعدادات", icon: Settings },
   ];
@@ -172,6 +174,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
         {currentTab === 'subscription-requests' && <SubscriptionRequestsManager />}
         {currentTab === 'summaries' && <SummariesManager />}
         {currentTab === 'specializations' && <SpecializationsManager />}
+        {currentTab === 'access-requests' && <ContentAccessRequestsManager />}
         {currentTab === 'notifications' && <NotificationsManager />}
         {currentTab === 'settings' && (
           <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">

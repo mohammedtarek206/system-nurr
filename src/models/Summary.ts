@@ -10,6 +10,9 @@ export interface ISummary extends Document {
     targetType: 'all' | 'specific';
     status: 'draft' | 'published' | 'hidden';
     order: number;
+    accessRequiresApproval?: boolean;
+    startDate?: string;
+    endDate?: string;
     coverImage?: string;
     views: number;
     createdAt: Date;
@@ -26,6 +29,9 @@ const SummarySchema = new Schema<ISummary>({
     targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
     status: { type: String, enum: ['draft', 'published', 'hidden'], default: 'draft' },
     order: { type: Number, default: 0 },
+    accessRequiresApproval: { type: Boolean, default: false },
+    startDate: { type: String, default: '' },
+    endDate: { type: String, default: '' },
     coverImage: { type: String, default: '' },
     views: { type: Number, default: 0 },
 }, { timestamps: true });

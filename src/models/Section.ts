@@ -11,6 +11,7 @@ export interface ISection extends Document {
   passingPercentage: number;
   targetSpecializations?: mongoose.Types.ObjectId[];
   targetType?: 'all' | 'specific';
+  accessRequiresApproval?: boolean;
   status: 'published' | 'draft';
   createdAt: Date;
   updatedAt: Date;
@@ -27,6 +28,7 @@ const SectionSchema = new Schema<ISection>({
   passingPercentage: { type: Number, default: 80 },
   targetSpecializations: [{ type: Schema.Types.ObjectId, ref: 'Specialization' }],
   targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
+  accessRequiresApproval: { type: Boolean, default: false },
   status: { type: String, enum: ['published', 'draft'], default: 'published' },
 }, { timestamps: true });
 

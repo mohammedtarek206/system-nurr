@@ -13,6 +13,12 @@ export interface ILesson extends Document {
   isActive: boolean;
   targetSpecializations?: mongoose.Types.ObjectId[];
   targetType?: 'all' | 'specific';
+  accessRequiresApproval?: boolean;
+  startDate?: string;
+  endDate?: string;
+  requiredExam?: mongoose.Types.ObjectId;
+  passingPercentage?: number;
+  nextLessonId?: mongoose.Types.ObjectId;
   createdAt: Date;
 }
 
@@ -29,6 +35,12 @@ const LessonSchema = new Schema<ILesson>({
   isActive: { type: Boolean, default: true },
   targetSpecializations: [{ type: Schema.Types.ObjectId, ref: 'Specialization' }],
   targetType: { type: String, enum: ['all', 'specific'], default: 'all' },
+  accessRequiresApproval: { type: Boolean, default: false },
+  startDate: { type: String, default: '' },
+  endDate: { type: String, default: '' },
+  requiredExam: { type: Schema.Types.ObjectId, ref: 'Exam' },
+  passingPercentage: { type: Number, default: 0 },
+  nextLessonId: { type: Schema.Types.ObjectId, ref: 'Lesson' },
 }, { timestamps: true });
 
 export const Lesson = mongoose.models.Lesson || mongoose.model<ILesson>('Lesson', LessonSchema);
